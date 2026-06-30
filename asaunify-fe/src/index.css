@@ -14,3 +14,35 @@ body {
   background-color: #d1d5db;
   border-radius: 9999px;
 }
+
+
+@theme {
+  /* Brand colors */
+  --color-primary: #8bc53f;
+  --color-primary-dark: #6fa030;
+  --color-primary-light: #a3d65c;
+
+  --color-teal: #0d5c5c;
+  --color-teal-dark: #093f3f;
+
+  --color-status-approved: #16a34a;
+  --color-status-rejected: #dc2626;
+  --color-status-pending: #6b7280;
+
+  /* Border radius */
+  --radius-pill: 9999px;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background-color: #ffffff;
+  color: #1f2937;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 9999px;
+}

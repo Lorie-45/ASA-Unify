@@ -2,13 +2,14 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Check, Send } from "lucide-react";
 import { requestsApi } from "../../api/requests.api";
-import { RequestType } from "../../types/enums";
+import { RequestType, Role } from "../../types/enums";
 import type { CreateRequestDto } from "../../types/request.types";
 import Button from "../../components/ui/Button";
 import VehicleFields from "../../components/requests/VehicleFields";
 import EquipmentFields from "../../components/requests/EquipmentFields";
 import LoanFields from "../../components/requests/LoanFields";
 import FileUploader from "../../components/ui/FileUploader";
+import { useAuthStore } from "../../store/authStore";
 
 export default function NewRequest() {
   const navigate = useNavigate();
@@ -102,6 +103,28 @@ export default function NewRequest() {
     }
   }
 
+  const role = useAuthStore((state) => state.role);
+
+  function getAvailableTypes(): { value: RequestType; label: string }[] {
+    const types = [];
+
+    if (role !== Role.DRIVER && role !== Role.AUDITOR) {
+      types.push({ value: RequestType.EQUIPMENT, label: "Equipment" });
+    }
+    if (role !== Role.AUDITOR) {
+      types.push({ value: RequestType.VEHICLE, label: "Vehicle" });
+    }
+    if (
+      role === Role.LOAN_OFFICER ||
+      role === Role.MSME_OFFICER ||
+      role === Role.RM
+    ) {
+      types.push({ value: RequestType.LOAN, label: "Loan" });
+    }
+
+    return types;
+  }
+
   return (
     <div className="max-w-4xl">
       <div className="flex items-center justify-between mb-8">
@@ -141,15 +164,17 @@ export default function NewRequest() {
               Request Type
             </label>
             <select
-              title="Request Type"
+              title="Request type"
               value={type}
               onChange={(e) => setType(e.target.value as RequestType)}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
             >
               <option value="">Select type</option>
-              <option value={RequestType.EQUIPMENT}>Equipment</option>
-              <option value={RequestType.VEHICLE}>Vehicle</option>
-              <option value={RequestType.LOAN}>Loan</option>
+              {getAvailableTypes().map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
             </select>
           </div>
           <div>

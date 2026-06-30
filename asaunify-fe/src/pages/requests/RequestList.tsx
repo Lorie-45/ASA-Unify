@@ -11,22 +11,37 @@ import Button from '../../components/ui/Button';
 
 export default function RequestList() {
   const navigate = useNavigate();
-  const { canInitiateRequests } = usePermissions();
 
   const [requests, setRequests] = useState<RequestResponseDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { canInitiateRequests, isAdmin, isAuditor } = usePermissions();
+
+  // const loadRequests = useCallback(async () => {
+  //   setIsLoading(true);
+  //   try {
+  //     const data = await requestsApi.getMyRequests();
+  //     setRequests(data);
+  //   } catch (error) {
+  //     console.error('Failed to load requests:', error);
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // }, []);
 
   const loadRequests = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const data = await requestsApi.getMyRequests();
-      setRequests(data);
-    } catch (error) {
-      console.error('Failed to load requests:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  setIsLoading(true);
+  try {
+    // Admin and Auditor see all requests
+    const data = isAdmin || isAuditor
+      ? await requestsApi.getAllRequests()
+      : await requestsApi.getMyRequests();
+    setRequests(data);
+  } catch (error) {
+    console.error('Failed to load requests:', error);
+  } finally {
+    setIsLoading(false);
+  }
+}, [isAdmin, isAuditor]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional fetch-on-mount

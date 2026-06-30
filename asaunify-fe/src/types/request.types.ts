@@ -1,4 +1,4 @@
-import type { RequestStatus, RequestType, StageActionType } from './enums';
+import type { RequestStatus, RequestType, StageActionType } from "./enums";
 
 export interface ApprovalStageDto {
   id: string;
@@ -66,6 +66,22 @@ export interface ApprovalActionDto {
 export interface AssignDriverDto {
   driverId: string;
   note?: string;
+}
+
+export interface VehicleTripAssignmentDto {
+  id: string;
+  requestId: string;
+  requestReferenceNumber: string;
+  requestTitle: string;
+  initiatorName: string;
+  destination: string;
+  tripDate: string;
+  purpose: string;
+  assignedByName: string;
+  assignedAt: string;
+  seenAt: string | null;
+  note: string | null;
+  requestStatus: string;
 }
 
 // ─── Type-specific extra field shapes ───────────────────────

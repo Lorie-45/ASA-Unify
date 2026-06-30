@@ -10,22 +10,37 @@ import type { MemoDto } from '../../types/memo.types';
 
 export default function MemoList() {
   const navigate = useNavigate();
-  const { canInitiateRequests } = usePermissions();
+  const { canInitiateRequests, isAdmin, isAuditor } = usePermissions();
 
   const [memos, setMemos] = useState<MemoDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const loadMemos = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const data = await memosApi.getMyMemos();
-      setMemos(data);
-    } catch (error) {
-      console.error('Failed to load memos:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  // const loadMemos = useCallback(async () => {
+  //   setIsLoading(true);
+  //   try {
+  //     const data = await memosApi.getMyMemos();
+  //     setMemos(data);
+  //   } catch (error) {
+  //     console.error('Failed to load memos:', error);
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // }, []);
+
+
+const loadMemos = useCallback(async () => {
+  setIsLoading(true);
+  try {
+    const data = isAdmin || isAuditor
+      ? await memosApi.getAllMemos()
+      : await memosApi.getMyMemos();
+    setMemos(data);
+  } catch (error) {
+    console.error('Failed to load memos:', error);
+  } finally {
+    setIsLoading(false);
+  }
+}, [isAdmin, isAuditor]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional fetch-on-mount
