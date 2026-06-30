@@ -14,6 +14,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -30,6 +31,7 @@ public class UserReportService {
 
     // ─── User Activity Report ─────────────────────────────────
 
+    @Transactional(readOnly = true)
     public List<UserActivityDTO> getUserActivityReport(
             LocalDateTime from,
             LocalDateTime to) {
@@ -42,6 +44,7 @@ public class UserReportService {
     }
 
     // Activity for a single user
+    @Transactional(readOnly = true)
     public UserActivityDTO getUserActivity(
             UUID userId,
             LocalDateTime from,
@@ -56,6 +59,7 @@ public class UserReportService {
 
     // ─── Task Assignment Report ───────────────────────────────
 
+    @Transactional(readOnly = true)
     public List<TaskAssignmentDTO> getTaskAssignmentReport(
             UUID userId,
             LocalDateTime from,

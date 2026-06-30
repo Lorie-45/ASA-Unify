@@ -35,6 +35,8 @@ public interface VehicleTripAssignmentRepo extends JpaRepository<VehicleTripAssi
             "ORDER BY v.assignedAt DESC")
     List<VehicleTripAssignment> findAllUnseen();
 
+    List<VehicleTripAssignment> findByDriver(User driver);
+
     // Check if a request already has an assignment
     boolean existsByRequest(Request request);
 }

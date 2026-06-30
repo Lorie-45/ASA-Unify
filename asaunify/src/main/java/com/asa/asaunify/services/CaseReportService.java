@@ -11,6 +11,7 @@ import com.asa.asaunify.repos.DepartmentRepo;
 import com.asa.asaunify.repos.RequestRepo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -28,6 +29,7 @@ public class CaseReportService {
     // ─── All Cases ────────────────────────────────────────────
 
     // Admin and Auditor only — all requests in the system
+    @Transactional(readOnly = true)
     public List<RequestResponseDto> getAllCases(
             RequestStatus status,
             RequestType type,
@@ -50,6 +52,7 @@ public class CaseReportService {
     // ─── My Cases ─────────────────────────────────────────────
 
     // Any user — their own requests only
+    @Transactional(readOnly = true)
     public List<RequestResponseDto> getMyCases(
             User user,
             RequestStatus status,
@@ -67,6 +70,7 @@ public class CaseReportService {
     // ─── Department Cases ─────────────────────────────────────
 
     // Department Head — all requests in their department
+    @Transactional(readOnly = true)
     public List<RequestResponseDto> getDepartmentCases(
             User deptHead,
             RequestStatus status,
@@ -95,6 +99,7 @@ public class CaseReportService {
 
     // ─── Completed Cases ──────────────────────────────────────
 
+    @Transactional(readOnly = true)
     public List<RequestResponseDto> getCompletedCases(
             User currentUser,
             LocalDateTime from,
@@ -136,6 +141,7 @@ public class CaseReportService {
 
     // ─── Rejected / Cancelled Cases ───────────────────────────
 
+    @Transactional(readOnly = true)
     public List<RequestResponseDto> getRejectedCases(
             User currentUser,
             LocalDateTime from,
@@ -173,6 +179,7 @@ public class CaseReportService {
 
     // ─── Overdue Cases ────────────────────────────────────────
 
+    @Transactional(readOnly = true)
     public List<RequestResponseDto> getOverdueCases(User currentUser) {
         return requestRepository
                 .findOverdueRequests(

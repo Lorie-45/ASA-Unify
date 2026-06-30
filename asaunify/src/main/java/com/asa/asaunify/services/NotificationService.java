@@ -74,7 +74,7 @@ public class NotificationService {
                     notifyByRole(
                             stage.getAssignedRole(),
                             title, body,
-                            ActionType.REQUEST_SUBMITTED,
+                            ActionType.STAGE_APPROVED,
                             request, null
                     );
                 });
@@ -94,6 +94,24 @@ public class NotificationService {
                 request.getInitiator(),
                 title, body,
                 ActionType.REQUEST_COMPLETED,
+                request, null
+        );
+    }
+
+    // Called when a request is fully approved (all parallel stages approved)
+// Notifies the initiator
+    @Async
+    public void notifyApproved(Request request) {
+        String title = "Request Approved";
+        String body = String.format(
+                "Your request %s — %s has been approved by all reviewers.",
+                request.getCaseId(),
+                request.getTitle()
+        );
+        sendAndPush(
+                request.getInitiator(),
+                title, body,
+                ActionType.REQUEST_APPROVED,
                 request, null
         );
     }

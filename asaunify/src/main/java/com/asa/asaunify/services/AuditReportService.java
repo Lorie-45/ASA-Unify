@@ -15,6 +15,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -31,6 +32,7 @@ public class AuditReportService {
 
     // ─── Audit Log Report ─────────────────────────────────────
 
+    @Transactional(readOnly = true)
     public List<AuditLogDTO> getAuditLogs(
             UUID userId,
             ActionType actionType,
@@ -83,6 +85,7 @@ public class AuditReportService {
 
     // All actions on a specific object
     // e.g. full history of request CN-001
+    @Transactional(readOnly = true)
     public List<AuditLogDTO> getObjectHistory(
             String objectType,
             String objectId) {
@@ -96,6 +99,7 @@ public class AuditReportService {
     }
 
     // Recent logs — admin dashboard feed
+    @Transactional(readOnly = true)
     public List<AuditLogDTO> getRecentLogs(int limit) {
         return auditLogRepository
                 .findRecentLogs(limit)
@@ -106,6 +110,7 @@ public class AuditReportService {
 
     // ─── Login History Report ─────────────────────────────────
 
+    @Transactional(readOnly = true)
     public List<LoginHistoryDTO> getLoginHistory(
             UUID userId,
             LocalDateTime from,
@@ -139,6 +144,7 @@ public class AuditReportService {
     }
 
     // Failed login attempts — security monitoring
+    @Transactional(readOnly = true)
     public List<LoginHistoryDTO> getFailedLogins(
             LocalDateTime from,
             LocalDateTime to) {

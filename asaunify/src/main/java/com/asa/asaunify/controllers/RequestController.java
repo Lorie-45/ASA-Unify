@@ -2,17 +2,16 @@ package com.asa.asaunify.controllers;
 
 
 
-import com.asa.asaunify.dtos.ApprovalActionDto;
-import com.asa.asaunify.dtos.AssignDriverDto;
-import com.asa.asaunify.dtos.CreateRequestDto;
-import com.asa.asaunify.dtos.RequestResponseDto;
+import com.asa.asaunify.dtos.*;
 import com.asa.asaunify.entity.User;
+import com.asa.asaunify.enums.Role;
 import com.asa.asaunify.services.RequestService;
 import com.asa.asaunify.services.UserService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -26,6 +25,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/requests")
 @RequiredArgsConstructor
+@Slf4j
 @Tag(name = "Requests")
 public class RequestController {
 
@@ -88,6 +88,20 @@ public class RequestController {
         );
     }
 
+    // PATCH /api/requests/{id}
+    @PatchMapping("/{id}")
+    public ResponseEntity<RequestResponseDto> updateDraft(
+            @PathVariable UUID id,
+            @RequestBody UpdateRequestDto dto,
+            @AuthenticationPrincipal UserDetails userDetails,
+            HttpServletRequest httpRequest) {
+
+        User currentUser = userService.findUserByEmail(userDetails.getUsername());
+        return ResponseEntity.ok(
+                requestService.updateDraft(id, dto, currentUser, httpRequest)
+        );
+    }
+
     // ─── Cancel ───────────────────────────────────────────────
 
     // POST /api/requests/{id}/cancel
@@ -126,6 +140,15 @@ public class RequestController {
 
         requestService.assignDriver(id, dto, currentUser, httpRequest);
         return ResponseEntity.ok().build();
+    }
+
+    // GET /api/requests/my-trips
+    @GetMapping("/my-trips")
+    @PreAuthorize("hasRole('DRIVER')")
+    public ResponseEntity<List<VehicleTripAssignmentDto>> getMyTrips(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        User currentUser = userService.findUserByEmail(userDetails.getUsername());
+        return ResponseEntity.ok(requestService.getMyTrips(currentUser));
     }
 
     // ─── Mark trip as seen (Driver only) ─────────────────────
@@ -189,6 +212,29 @@ public class RequestController {
                 requestService.getPendingForRole(currentUser)
         );
     }
+
+
+
+
+
+    @GetMapping("/role/{role}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<UserDto>> getUsersByRole(
+            @PathVariable Role role) {
+        try {
+            log.info("getUsersByRole called with role: {}", role);
+            List<UserDto> result = userService.getUsersByRole(role);
+            log.info("getUsersByRole returning {} users", result.size());
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            log.error("getUsersByRole failed", e);
+            throw e;
+        }
+    }
+
+
+
+
 
     // ─── Get all requests — Admin and Auditor ─────────────────
 

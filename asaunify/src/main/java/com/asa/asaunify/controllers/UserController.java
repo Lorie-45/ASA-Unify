@@ -96,7 +96,7 @@ public class UserController {
 
     // GET /api/users/role/{role}
     @GetMapping("/role/{role}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<UserDto>> getUsersByRole(
             @PathVariable Role role) {
         return ResponseEntity.ok(userService.getUsersByRole(role));

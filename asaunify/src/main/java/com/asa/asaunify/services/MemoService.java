@@ -174,6 +174,7 @@ public class MemoService {
 
     // ─── Queries ──────────────────────────────────────────────
 
+    @Transactional(readOnly = true)
     public List<MemoDto> getMyMemos(User user) {
         return memoRepository
                 .findByAuthorOrderByCreatedAtDesc(user)
@@ -182,6 +183,7 @@ public class MemoService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public List<MemoDto> getPendingMemosForRole(User user) {
         return memoRepository
                 .findPendingMemosByRole(user.getRole())
@@ -190,6 +192,7 @@ public class MemoService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public List<MemoDto> getAllMemos() {
         return memoRepository.findAll()
                 .stream()
@@ -197,6 +200,7 @@ public class MemoService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public MemoDto getMemoById(UUID id) {
         return toDTO(findMemoById(id));
     }

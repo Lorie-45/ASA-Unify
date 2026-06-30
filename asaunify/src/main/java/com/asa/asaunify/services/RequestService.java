@@ -2,10 +2,7 @@ package com.asa.asaunify.services;
 
 
 
-import com.asa.asaunify.dtos.ApprovalActionDto;
-import com.asa.asaunify.dtos.AssignDriverDto;
-import com.asa.asaunify.dtos.CreateRequestDto;
-import com.asa.asaunify.dtos.RequestResponseDto;
+import com.asa.asaunify.dtos.*;
 import com.asa.asaunify.entity.*;
 import com.asa.asaunify.enums.ActionType;
 import com.asa.asaunify.enums.RequestStatus;
@@ -23,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -49,7 +47,15 @@ public class RequestService {
             HttpServletRequest httpRequest) {
 
         validateCanInitiate(initiator);
+
+        if (initiator.getDepartment() == null) {
+            throw new IllegalArgumentException(
+                    "You must be assigned to a department before creating a request"
+            );
+        }
+
         validateExtraFields(dto);
+        validateRoleForRequestType(initiator.getRole(), dto.getType());
 
         Request request = Request.builder()
                 .caseId(generateReferenceNumber())
@@ -141,6 +147,10 @@ public class RequestService {
 
         Request request = findRequestById(requestId);
 
+        log.info("=== processAction ===");
+        log.info("User: {} Role: {}", currentUser.getEmail(), currentUser.getRole());
+        log.info("Request ID: {}", request.getId());
+
         // Validate request is still pending
         if (request.getStatus() != RequestStatus.PENDING) {
             throw new IllegalArgumentException(
@@ -174,12 +184,23 @@ public class RequestService {
             );
         }
 
-        // If rejected — stamp rejection fields on the request
-        if (dto.getAction() == StageStatus.REJECTED) {
-            request.setRejectedBy(currentUser);
-            request.setRejectedAt(LocalDateTime.now());
-            request.setRejectionReason(dto.getComment());
-            requestRepository.save(request);
+        try {
+            workflowEngine.processAction(request, stage, dto.getAction(), dto.getComment());
+            log.info("WorkflowEngine processAction completed successfully");
+        } catch (Exception e) {
+            log.error("WorkflowEngine processAction FAILED", e);
+            throw e;
+        }
+
+// Refresh request after workflow engine processed it
+        Request updatedRequest = requestRepository.findById(requestId).orElseThrow();
+
+// Only stamp rejection fields if workflow engine marked it as rejected
+        if (updatedRequest.getStatus() == RequestStatus.REJECTED &&
+                dto.getAction() == StageStatus.REJECTED) {
+            updatedRequest.setRejectedBy(currentUser);
+            updatedRequest.setRejectionReason(dto.getComment());
+            requestRepository.save(updatedRequest);
         }
 
         auditService.log(
@@ -243,10 +264,23 @@ public class RequestService {
     public void assignDriver(
             UUID requestId,
             AssignDriverDto dto,
-            User fleetManager,
+            User currentUser,
             HttpServletRequest httpRequest) {
 
-        Request request = findRequestById(requestId);
+        Request request = requestRepository.findById(requestId)
+                .orElseThrow(() -> new IllegalArgumentException("Request not found"));
+
+        // Only Fleet Manager can assign drivers
+        if (currentUser.getRole() != Role.FLEET_MANAGER) {
+            throw new IllegalArgumentException("Only Fleet Managers can assign drivers");
+        }
+
+        // Only APPROVED vehicle requests can have drivers assigned
+        if (request.getStatus() != RequestStatus.APPROVED) {
+            throw new IllegalArgumentException(
+                    "Driver can only be assigned to an approved vehicle request"
+            );
+        }
 
         if (request.getType() != RequestType.VEHICLE) {
             throw new IllegalArgumentException(
@@ -254,38 +288,36 @@ public class RequestService {
             );
         }
 
-        // Check no existing assignment
-        if (tripAssignmentRepository.existsByRequest(request)) {
-            throw new IllegalArgumentException(
-                    "A driver has already been assigned to this request"
-            );
-        }
-
         User driver = userRepository.findById(dto.getDriverId())
-                .orElseThrow(() ->
-                        new IllegalArgumentException("Driver not found"));
+                .orElseThrow(() -> new IllegalArgumentException("Driver not found"));
 
         if (driver.getRole() != Role.DRIVER) {
-            throw new IllegalArgumentException(
-                    "Assigned user is not a driver"
-            );
+            throw new IllegalArgumentException("Selected user is not a driver");
         }
 
+        // Create the trip assignment
         VehicleTripAssignment assignment = VehicleTripAssignment.builder()
                 .request(request)
                 .driver(driver)
-                .assignedBy(fleetManager)
+                .assignedBy(currentUser)
+                .assignedAt(LocalDateTime.now())
+//                .note(dto.getNote())
                 .build();
 
         tripAssignmentRepository.save(assignment);
 
+        // Now mark the request as COMPLETED
+        request.setStatus(RequestStatus.COMPLETED);
+        requestRepository.save(request);
+
+        // Notify driver
         notificationService.notifyDriverAssigned(request, driver);
 
         auditService.log(
-                fleetManager,
+                currentUser,
                 ActionType.DRIVER_ASSIGNED,
                 "REQUEST",
-                request.getId().toString(),
+                requestId.toString(),
                 "REQUESTS",
                 httpRequest
         );
@@ -314,9 +346,42 @@ public class RequestService {
         }
     }
 
+    @Transactional(readOnly = true)
+    public List<VehicleTripAssignmentDto> getMyTrips(User driver) {
+        return tripAssignmentRepository.findByDriver(driver)
+                .stream()
+                .map(this::toTripDTO)
+                .collect(Collectors.toList());
+    }
+
+    private VehicleTripAssignmentDto toTripDTO(VehicleTripAssignment assignment) {
+        Request request = assignment.getRequest();
+        Map<String, Object> extra = request.getExtraFields() != null
+                ? request.getExtraFields()
+                : Map.of();
+
+        return VehicleTripAssignmentDto.builder()
+                .id(assignment.getId())
+                .requestId(request.getId())
+                .requestReferenceNumber(request.getCaseId())
+                .requestTitle(request.getTitle())
+                .initiatorName(request.getInitiator().getFullName())
+                .destination(extra.getOrDefault("destination", "").toString())
+                .tripDate(extra.getOrDefault("trip_date", "").toString())
+                .purpose(extra.getOrDefault("purpose", "").toString())
+                .assignedByName(assignment.getAssignedBy().getFullName())
+                .assignedAt(assignment.getAssignedAt())
+                .seenAt(assignment.getSeenAt())
+//                .note(assignment.getNote())
+                .requestStatus(request.getStatus().name())
+                .build();
+    }
+
+
     // ─── Queries ──────────────────────────────────────────────
 
     // My requests — initiator view
+    @Transactional(readOnly = true)
     public List<RequestResponseDto> getMyRequests(User user) {
         return requestRepository
                 .findByInitiatorOrderByCreatedAtDesc(user)
@@ -326,6 +391,7 @@ public class RequestService {
     }
 
     // Department requests — department head view
+    @Transactional(readOnly = true)
     public List<RequestResponseDto> getDepartmentRequests(User deptHead) {
         return requestRepository
                 .findByDepartmentOrderByCreatedAtDesc(deptHead.getDepartment())
@@ -335,17 +401,56 @@ public class RequestService {
     }
 
     // Pending approvals — what is waiting on current user's role
+//    @Transactional(readOnly = true)
+//    public List<RequestResponseDto> getPendingForRole(User user) {
+//        log.info("=== getPendingForRole ===");
+//        log.info("User role: {}", user.getRole());
+//
+//        List<ApprovalStage> stages = approvalStageRepository
+//                .findByAssignedRoleAndStatus(user.getRole(), StageStatus.PENDING);
+//
+//        log.info("Found {} pending stages for role {}", stages.size(), user.getRole());
+//        stages.forEach(s -> log.info("Stage: {} request: {} status: {}",
+//                s.getId(), s.getRequest().getId(), s.getStatus()));
+//
+//        return approvalStageRepository
+//                .findByAssignedRoleAndStatus(user.getRole(), StageStatus.PENDING)
+//                .stream()
+//                .map(ApprovalStage::getRequest)
+//                .filter(r -> r.getStatus() == RequestStatus.PENDING)
+//                .map(this::toDTO)
+//                .collect(Collectors.toList());
+//    }
+
+    @Transactional(readOnly = true)
     public List<RequestResponseDto> getPendingForRole(User user) {
-        return approvalStageRepository
-                .findByAssignedRoleAndStatus(user.getRole(), StageStatus.PENDING)
-                .stream()
-                .map(ApprovalStage::getRequest)
-                .filter(r -> r.getStatus() == RequestStatus.PENDING)
-                .map(this::toDTO)
-                .collect(Collectors.toList());
+        try {
+            log.info("=== getPendingForRole START ===");
+            log.info("User: {} Role: {}", user.getEmail(), user.getRole());
+
+            List<ApprovalStage> stages = approvalStageRepository
+                    .findByAssignedRoleAndStatus(user.getRole(), StageStatus.PENDING);
+
+            log.info("Found {} stages", stages.size());
+
+            List<RequestResponseDto> result = stages.stream()
+                    .map(ApprovalStage::getRequest)
+                    .filter(r -> r.getStatus() == RequestStatus.PENDING)
+                    .map(this::toDTO)
+                    .collect(Collectors.toList());
+
+            log.info("Returning {} results", result.size());
+            return result;
+
+        } catch (Exception e) {
+            log.error("=== getPendingForRole FAILED ===", e);
+            return List.of();
+        }
     }
 
+
     // All requests — admin/auditor view
+    @Transactional(readOnly = true)
     public List<RequestResponseDto> getAllRequests() {
         return requestRepository
                 .findAll()
@@ -354,8 +459,48 @@ public class RequestService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public RequestResponseDto getRequestById(UUID id) {
         return toDTO(findRequestById(id));
+    }
+
+    @Transactional
+    public RequestResponseDto updateDraft(
+            UUID id,
+            UpdateRequestDto dto,
+            User currentUser,
+            HttpServletRequest httpRequest) {
+
+        Request request = requestRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Request not found"));
+
+        // Only the initiator can edit their own draft
+        if (!request.getInitiator().getId().equals(currentUser.getId())) {
+            throw new IllegalArgumentException("You can only edit your own requests");
+        }
+
+        // Can only edit drafts
+        if (request.getStatus() != RequestStatus.DRAFT) {
+            throw new IllegalArgumentException("Only draft requests can be edited");
+        }
+
+        if (dto.getTitle() != null) request.setTitle(dto.getTitle());
+        if (dto.getDetails() != null) request.setDetails(dto.getDetails());
+        if (dto.getNotes() != null) request.setNotes(dto.getNotes());
+        if (dto.getExtraFields() != null) request.setExtraFields(dto.getExtraFields());
+
+        Request saved = requestRepository.save(request);
+
+        auditService.log(
+                currentUser,
+                ActionType.REQUEST_UPDATED,
+                "REQUEST",
+                saved.getId().toString(),
+                "REQUESTS",
+                httpRequest
+        );
+
+        return toDTO(saved);
     }
 
     // ─── Helpers ──────────────────────────────────────────────
@@ -365,6 +510,29 @@ public class RequestService {
                 .orElseThrow(() ->
                         new IllegalArgumentException("Request not found: " + id));
     }
+
+//    private ApprovalStage findActiveStageForUser(
+//            Request request,
+//            User user) {
+//
+//        Integer currentIndex = approvalStageRepository
+//                .findCurrentStageIndex(request)
+//                .orElseThrow(() ->
+//                        new IllegalArgumentException(
+//                                "No active stage found for this request"
+//                        ));
+//
+//        return approvalStageRepository
+//                .findByRequestAndStageIndex(request, currentIndex)
+//                .stream()
+//                .filter(s -> s.getAssignedRole() == user.getRole()
+//                        && s.getStatus() == StageStatus.PENDING)
+//                .findFirst()
+//                .orElseThrow(() ->
+//                        new IllegalArgumentException(
+//                                "You are not authorized to act on this request"
+//                        ));
+//    }
 
     private ApprovalStage findActiveStageForUser(
             Request request,
@@ -377,10 +545,23 @@ public class RequestService {
                                 "No active stage found for this request"
                         ));
 
-        return approvalStageRepository
-                .findByRequestAndStageIndex(request, currentIndex)
-                .stream()
-                .filter(s -> s.getAssignedRole() == user.getRole()
+        log.info("Current stage index: {}", currentIndex);
+        log.info("Looking for role: {}", user.getRole());
+
+        // List all stages at this index for debugging
+        List<ApprovalStage> stages = approvalStageRepository
+                .findByRequestAndStageIndex(request, currentIndex);
+
+        stages.forEach(s -> log.info(
+                "Stage: assignedRole={} status={} roleMatch={} statusMatch={}",
+                s.getAssignedRole(),
+                s.getStatus(),
+                s.getAssignedRole().equals(user.getRole()),  // use equals not ==
+                s.getStatus() == StageStatus.PENDING
+        ));
+
+        return stages.stream()
+                .filter(s -> s.getAssignedRole().equals(user.getRole())  // ← .equals() not ==
                         && s.getStatus() == StageStatus.PENDING)
                 .findFirst()
                 .orElseThrow(() ->
@@ -539,4 +720,37 @@ public class RequestService {
                 .uploadedByName(attachment.getUploadedBy().getFullName())
                 .build();
     }
+
+
+    private void validateRoleForRequestType(Role role, RequestType type) {
+        switch (type) {
+            case LOAN -> {
+                if (role != Role.LOAN_OFFICER &&
+                        role != Role.MSME_OFFICER &&
+                        role != Role.RM) {
+                    throw new IllegalArgumentException(
+                            "Only Loan Officers, MSME Officers, and RMs can create Loan requests"
+                    );
+                }
+            }
+            case EQUIPMENT -> {
+                if (role == Role.DRIVER || role == Role.AUDITOR) {
+                    throw new IllegalArgumentException(
+                            "Your role is not permitted to create Equipment requests"
+                    );
+                }
+            }
+            case VEHICLE -> {
+                if (role == Role.AUDITOR) {
+                    throw new IllegalArgumentException(
+                            "Your role is not permitted to create Vehicle requests"
+                    );
+                }
+            }
+            default -> throw new IllegalArgumentException(
+                    "Unknown request type: " + type
+            );
+        }
+    }
+
 }

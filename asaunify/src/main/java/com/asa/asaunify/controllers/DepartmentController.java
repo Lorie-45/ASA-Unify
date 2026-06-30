@@ -3,6 +3,7 @@ package com.asa.asaunify.controllers;
 
 
 import com.asa.asaunify.entity.Department;
+import com.asa.asaunify.repos.DepartmentRepo;
 import com.asa.asaunify.services.DepartmentService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotBlank;
@@ -33,6 +34,7 @@ public class DepartmentController {
     public ResponseEntity<Department> createDepartment(
             @RequestBody CreateDepartmentRequest request) {
 
+
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(departmentService.createDepartment(
@@ -44,6 +46,8 @@ public class DepartmentController {
     // ─── Get all ──────────────────────────────────────────────
 
     // GET /api/departments
+    @GetMapping
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<Department>> getAllDepartments() {
         return ResponseEntity.ok(
                 departmentService.getAllDepartments()

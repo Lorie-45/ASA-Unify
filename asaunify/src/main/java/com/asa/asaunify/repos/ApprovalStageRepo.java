@@ -28,10 +28,11 @@ public interface ApprovalStageRepo extends JpaRepository<ApprovalStage, UUID> {
     // Current pending stages for a request
     List<ApprovalStage> findByRequestAndStatus(Request request, StageStatus status);
 
-    // Find the current active stage index for a request
-    // The lowest index that still has a PENDING stage
+
     @Query("SELECT MIN(a.stageIndex) FROM ApprovalStage a " +
-            "WHERE a.request = :request AND a.status = 'PENDING'")
+            "WHERE a.request = :request " +
+            "AND a.status = 'PENDING' " +
+            "AND a.actedAt IS NULL")
     Optional<Integer> findCurrentStageIndex(Request request);
 
     // All pending stages assigned to a specific role

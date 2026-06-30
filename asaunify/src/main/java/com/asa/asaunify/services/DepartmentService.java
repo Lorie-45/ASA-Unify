@@ -31,35 +31,47 @@ public class DepartmentService {
             );
         }
 
-        // Validate head user exists and has DEPARTMENT_HEAD role
-        if (headUserId != null) {
-            User head = userRepository.findById(headUserId)
-                    .orElseThrow(() ->
-                            new IllegalArgumentException("Head user not found"));
-
-            if (!head.hasRole(com.asa.asaunify.enums.Role.DEPARTMENT_HEAD)) {
-                throw new IllegalArgumentException(
-                        "Assigned head user does not have DEPARTMENT_HEAD role"
-                );
-            }
-        }
-
         Department department = Department.builder()
                 .name(name)
-                .headUserId(headUserId)
+//                .headUserId(headUserId)
                 .build();
+
+        // Validate head user exists and has DEPARTMENT_HEAD role
+//        if (headUserId != null) {
+//            User head = userRepository.findById(headUserId)
+//                    .orElseThrow(() ->
+//                            new IllegalArgumentException("Head user not found"));
+//
+//            if (!head.hasRole(com.asa.asaunify.enums.Role.DEPARTMENT_HEAD)) {
+//                throw new IllegalArgumentException(
+//                        "Assigned head user does not have DEPARTMENT_HEAD role"
+//                );
+//            }
+//        }
+
+        if (headUserId != null) {
+            userRepository.findById(headUserId)
+                    .ifPresentOrElse(
+                            user -> department.setHeadUserId(headUserId),
+                            () -> { throw new IllegalArgumentException("Head user not found"); }
+                    );
+        }
+
+
 
         return departmentRepository.save(department);
     }
 
     // ─── Read ─────────────────────────────────────────────────
 
+    @Transactional(readOnly = true)
     public Department getDepartmentById(UUID id) {
         return departmentRepository.findById(id)
                 .orElseThrow(() ->
                         new IllegalArgumentException("Department not found: " + id));
     }
 
+    @Transactional(readOnly = true)
     public List<Department> getAllDepartments() {
         return departmentRepository.findAll();
     }

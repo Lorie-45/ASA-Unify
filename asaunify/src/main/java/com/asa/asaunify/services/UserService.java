@@ -12,11 +12,11 @@ import com.asa.asaunify.repos.DepartmentRepo;
 import com.asa.asaunify.repos.UserRepo;
 import com.asa.asaunify.enums.Role;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -82,10 +82,12 @@ public class UserService {
     }
 
 
+    @Transactional(readOnly = true)
     public UserDto getUserById(UUID id) {
         return toDTO(findUserById(id));
     }
 
+    @Transactional(readOnly = true)
     public List<UserDto> getAllUsers() {
         return userRepository.findAll()
                 .stream()
@@ -93,6 +95,7 @@ public class UserService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public List<UserDto> getUsersByDepartment(UUID departmentId) {
         Department department = departmentRepository
                 .findById(departmentId)
@@ -105,6 +108,7 @@ public class UserService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public List<UserDto> getUsersByRole(Role role) {
         return userRepository.findByRole(role)
                 .stream()

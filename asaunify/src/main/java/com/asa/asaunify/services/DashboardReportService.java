@@ -15,6 +15,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
@@ -30,6 +31,7 @@ public class DashboardReportService {
 
     // ─── Main dashboard KPI summary ───────────────────────────
 
+    @Transactional(readOnly = true)
     public DashboardSummaryDTO getSummary(
             User currentUser,
             LocalDateTime from,
