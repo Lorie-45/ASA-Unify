@@ -6,6 +6,7 @@ import Button from "../../components/ui/Button";
 import DataTable, { type Column } from "../../components/ui/DataTable";
 import { Role } from "../../types/enums";
 import type { Department, UserDto } from "../../types/user.types";
+import { toastApiError, toastSuccess } from "../../utils/toast";
 
 export default function AdminDepartments() {
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -130,9 +131,10 @@ function CreateDepartmentModal({
     setIsSubmitting(true);
     try {
       await departmentsApi.createDepartment(name, headUserId || undefined);
+      toastSuccess("Department created successfully");
       onCreated();
     } catch (err) {
-      console.error("Failed to create department:", err);
+      toastApiError(err, "Failed to create department");
       setError("Failed to create department. Name may already exist.");
     } finally {
       setIsSubmitting(false);
@@ -222,9 +224,10 @@ function AssignHeadModal({
         department.name,
         headUserId || undefined,
       );
+      toastSuccess("Department head assigned successfully");
       onAssigned();
     } catch (err) {
-      console.error("Failed to assign head:", err);
+      toastApiError(err, "Failed to assign head");
       setError("Failed to update department head.");
     } finally {
       setIsSubmitting(false);

@@ -5,6 +5,7 @@ import { authApi } from '../api/auth.api';
 import { useAuthStore } from '../store/authStore';
 import { useNotificationStore } from '../store/notificationStore';
 import axios from 'axios';
+import { toastApiError, toastError, toastSuccess } from '../utils/toast';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -14,15 +15,13 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setError(null);
 
     if (!email || !password) {
-      setError('Please enter both email and password');
+      toastError('Please enter both email and password');
       return;
     }
 
@@ -42,13 +41,13 @@ export default function Login() {
 
       // Hydrate notification bell right after login
       fetchSummary();
-
+    toastSuccess(`Welcome back, ${response.fullName}!`);
       navigate('/dashboard');
     } catch (err) {
-      if (axios.isAxiosError(err) && err.response?.status === 401) {
-        setError('Invalid email or password');
+      if (axios.isAxiosError(err) && err.response?.status === 403) {
+        toastError('Invalid email or password');
       } else {
-        setError('Something went wrong. Please try again.');
+        toastApiError(err)
       }
     } finally {
       setIsLoading(false);
@@ -113,12 +112,6 @@ export default function Login() {
                     Forgot Password?
                 </a>
                 </div>
-
-                {error && (
-                <p className="text-sm text-status-rejected font-medium">
-                    {error}
-                </p>
-                )}
 
                 <button
                 type="submit"

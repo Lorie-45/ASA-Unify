@@ -10,6 +10,7 @@ import EquipmentFields from "../../components/requests/EquipmentFields";
 import LoanFields from "../../components/requests/LoanFields";
 import FileUploader from "../../components/ui/FileUploader";
 import { useAuthStore } from "../../store/authStore";
+import { toastApiError, toastError, toastSuccess } from "../../utils/toast";
 
 export default function NewRequest() {
   const navigate = useNavigate();
@@ -69,6 +70,7 @@ export default function NewRequest() {
   async function handleSave(submit: boolean) {
     const validationError = validate();
     if (validationError) {
+      toastError(validationError);
       setError(validationError);
       return;
     }
@@ -92,11 +94,14 @@ export default function NewRequest() {
 
       if (submit) {
         await requestsApi.submitRequest(created.id);
+        toastSuccess("Request submitted successfully");
+      } else {
+        toastSuccess("Draft saved successfully");
       }
 
       navigate("/requests");
     } catch (err) {
-      console.error("Failed to save request:", err);
+      toastApiError(err, "Failed to save your request. Please try again.");
       setError("Something went wrong while saving your request.");
     } finally {
       setIsSubmitting(false);

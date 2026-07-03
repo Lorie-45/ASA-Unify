@@ -7,6 +7,7 @@ import SearchFilterBar from "../../components/ui/SearchFilterBar";
 import DataTable, { type Column } from "../../components/ui/DataTable";
 import { Role } from "../../types/enums";
 import type { UserDto, Department } from "../../types/user.types";
+import { toastApiError, toastSuccess } from "../../utils/toast";
 
 const ROLE_OPTIONS = Object.values(Role);
 
@@ -49,9 +50,10 @@ export default function AdminUsers() {
       return;
     try {
       await usersApi.deactivateUser(id);
+      toastSuccess('User deactivated');
       loadData();
     } catch (error) {
-      console.error("Failed to deactivate user:", error);
+      toastApiError(error,"Failed to deactivate user");
     }
   }
 
@@ -177,9 +179,10 @@ function CreateUserModal({
         role: role as Role,
         departmentId: needsDepartment ? departmentId : undefined,
       });
+      toastSuccess('User created successfully')
       onCreated();
     } catch (err) {
-      console.error("Failed to create user:", err);
+      toastApiError(err,"Failed to create user");
       setError("Failed to create user. Email may already be in use.");
     } finally {
       setIsSubmitting(false);

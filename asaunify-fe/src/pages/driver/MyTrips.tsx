@@ -3,6 +3,7 @@ import { Car, MapPin, Calendar, User, Eye } from 'lucide-react';
 import { requestsApi } from '../../api/requests.api';
 import { formatDate } from '../../utils/formatDate';
 import type { VehicleTripAssignmentDto } from '../../types/request.types';
+import { toastApiError, toastSuccess } from '../../utils/toast';
 
 export default function MyTrips() {
   const [trips, setTrips] = useState<VehicleTripAssignmentDto[]>([]);
@@ -28,9 +29,10 @@ export default function MyTrips() {
   async function handleMarkSeen(requestId: string) {
     try {
       await requestsApi.markTripSeen(requestId);
+      toastSuccess('Trip acknowledged');
       loadTrips();
     } catch (error) {
-      console.error('Failed to mark trip as seen:', error);
+      toastApiError(error,'Failed to mark trip as seen');
     }
   }
 

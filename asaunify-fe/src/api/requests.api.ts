@@ -114,7 +114,7 @@ export const requestsApi = {
 
   updateDraft: async (
     id: string,
-    dto: { title: string; details: string; notes?: string },
+    dto: { title: string; details: string; notes?: string;  extraFields?: Record<string, unknown> },
   ): Promise<RequestResponseDto> => {
     const response = await api.patch<RequestResponseDto>(
       `/requests/${id}`,

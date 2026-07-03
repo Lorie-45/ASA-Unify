@@ -1,21 +1,24 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { requestsApi } from '../api/requests.api';
-import { useAuthStore } from '../store/authStore';
-import SearchFilterBar from '../components/ui/SearchFilterBar';
-import ApprovalActionModal from '../components/requests/ApprovalActionModal';
-import { Role, StageStatus, type StageActionType } from '../types/enums';
-import { formatDate } from '../utils/formatDate';
-import type { RequestResponseDto } from '../types/request.types';
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { requestsApi } from "../api/requests.api";
+import { useAuthStore } from "../store/authStore";
+import SearchFilterBar from "../components/ui/SearchFilterBar";
+import ApprovalActionModal from "../components/requests/ApprovalActionModal";
+import { Role, StageStatus, type StageActionType } from "../types/enums";
+import { formatDate } from "../utils/formatDate";
+import type { RequestResponseDto } from "../types/request.types";
+import { toastApiError, toastSuccess } from "../utils/toast";
 
 export default function Approvals() {
   const navigate = useNavigate();
   const role = useAuthStore((state) => state.role);
 
   const [requests, setRequests] = useState<RequestResponseDto[]>([]);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const [activeRequest, setActiveRequest] = useState<RequestResponseDto | null>(null);
+  const [activeRequest, setActiveRequest] = useState<RequestResponseDto | null>(
+    null,
+  );
   const [modalAction, setModalAction] = useState<StageActionType | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -25,7 +28,7 @@ export default function Approvals() {
       const data = await requestsApi.getPendingForRole();
       setRequests(data);
     } catch (error) {
-      console.error('Failed to load pending approvals:', error);
+      console.error("Failed to load pending approvals:", error);
     } finally {
       setIsLoading(false);
     }
@@ -52,9 +55,14 @@ export default function Approvals() {
       });
       setModalAction(null);
       setActiveRequest(null);
+      toastSuccess(
+        modalAction === StageStatus.APPROVED
+          ? "Request approved"
+          : "Request rejected",
+      );
       loadPending();
     } catch (error) {
-      console.error('Failed to process action:', error);
+      toastApiError(error, "Failed to process action");
     } finally {
       setIsSubmitting(false);
     }
@@ -64,7 +72,7 @@ export default function Approvals() {
     (r) =>
       r.title.toLowerCase().includes(search.toLowerCase()) ||
       r.referenceNumber.toLowerCase().includes(search.toLowerCase()) ||
-      r.initiatorName.toLowerCase().includes(search.toLowerCase())
+      r.initiatorName.toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
@@ -165,10 +173,12 @@ function ApprovalCard({
         </div>
         <div>
           <p className="text-xs text-gray-400">
-            {amount ? 'Price' : 'Reference'}
+            {amount ? "Price" : "Reference"}
           </p>
           <p className="font-medium text-gray-900">
-            {amount ? `${amount.toLocaleString()} Rwf` : request.referenceNumber}
+            {amount
+              ? `${amount.toLocaleString()} Rwf`
+              : request.referenceNumber}
           </p>
         </div>
         <div>

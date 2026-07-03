@@ -19,6 +19,7 @@ import StageTracker from "../../components/requests/StageTracker";
 import ApprovalActionModal from "../../components/requests/ApprovalActionModal";
 import { usersApi } from "../../api/users.api";
 import type { UserDto } from "../../types/user.types";
+import { toastApiError, toastSuccess } from "../../utils/toast";
 
 export default function RequestDetail() {
   const { id } = useParams<{ id: string }>();
@@ -65,7 +66,6 @@ export default function RequestDetail() {
   // Loan edit fields
   const [editAmount, setEditAmount] = useState(0);
   const [editIsTopUp, setEditIsTopUp] = useState(false);
-  const [editParentRequestId, setEditParentRequestId] = useState("");
 
   const loadRequest = useCallback(async () => {
     if (!id) return;
@@ -107,9 +107,10 @@ export default function RequestDetail() {
       setIsAssignDriverOpen(false);
       setSelectedDriverId("");
       setDriverNote("");
+      toastSuccess("Driver assigned successfully");
       loadRequest();
     } catch (error) {
-      console.error("Failed to assign driver:", error);
+      toastApiError(error, "Failed to assign driver");
     } finally {
       setIsAssigning(false);
     }
@@ -133,9 +134,14 @@ export default function RequestDetail() {
         inStock,
       });
       setModalAction(null);
+      toastSuccess(
+        modalAction === StageStatus.APPROVED
+          ? "Request approved successfully"
+          : "Request rejected",
+      );
       loadRequest();
     } catch (error) {
-      console.error("Failed to process action:", error);
+      toastApiError(error, "Failed to process action, try again");
     } finally {
       setIsSubmitting(false);
     }
@@ -162,7 +168,6 @@ export default function RequestDetail() {
     if (request!.type === RequestType.LOAN) {
       setEditAmount(Number(extra.amount ?? 0));
       setEditIsTopUp(Boolean(extra.is_top_up ?? false));
-      setEditParentRequestId(String(extra.parentRequestId ?? ""));
     }
 
     setIsEditing(true);
@@ -214,9 +219,10 @@ export default function RequestDetail() {
         extraFields: updatedExtraFields,
       });
       setIsEditing(false);
+      toastSuccess("Draft edited successfully");
       loadRequest();
     } catch (error) {
-      console.error("Failed to save draft:", error);
+      toastApiError(error, "Failed to save draft");
     } finally {
       setIsSaving(false);
     }
@@ -228,9 +234,10 @@ export default function RequestDetail() {
     if (!reason) return;
     try {
       await requestsApi.cancelRequest(request.id, reason);
+      toastSuccess("Request Cancelled");
       loadRequest();
     } catch (error) {
-      console.error("Failed to cancel request:", error);
+      toastApiError(error, "Failed to cancel request");
     }
   }
 
@@ -372,6 +379,117 @@ export default function RequestDetail() {
               rows={3}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
+
+            {request.type === RequestType.EQUIPMENT && (
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-100">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Item Name
+                  </label>
+                  <input
+                    title="Item Name"
+                    type="text"
+                    value={editItemName}
+                    onChange={(e) => setEditItemName(e.target.value)}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Quantity
+                  </label>
+                  <input
+                    title="Quantity"
+                    type="number"
+                    min={1}
+                    value={editQuantity}
+                    onChange={(e) => setEditQuantity(Number(e.target.value))}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Vehicle extra fields */}
+            {request.type === RequestType.VEHICLE && (
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-100">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Destination
+                  </label>
+                  <input
+                    title="Destination"
+                    type="text"
+                    value={editDestination}
+                    onChange={(e) => setEditDestination(e.target.value)}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Trip Date
+                  </label>
+                  <input
+                    title="Date"
+                    type="date"
+                    value={editTripDate}
+                    onChange={(e) => setEditTripDate(e.target.value)}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Purpose
+                  </label>
+                  <input
+                    title="Purpose"
+                    type="text"
+                    value={editPurpose}
+                    onChange={(e) => setEditPurpose(e.target.value)}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Loan extra fields */}
+            {request.type === RequestType.LOAN && (
+              <div className="space-y-4 pt-4 border-t border-gray-100">
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="editIsTopUp"
+                    checked={editIsTopUp}
+                    onChange={(e) => setEditIsTopUp(e.target.checked)}
+                    className="w-4 h-4 accent-primary"
+                  />
+                  <label
+                    htmlFor="editIsTopUp"
+                    className="text-sm font-medium text-gray-700"
+                  >
+                    This is a top-up on an existing MSME Silver loan
+                  </label>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Loan Amount (RWF)
+                  </label>
+                  <input
+                    title="Amount"
+                    type="number"
+                    min={0}
+                    value={editAmount}
+                    onChange={(e) => setEditAmount(Number(e.target.value))}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    {editIsTopUp
+                      ? "Maximum top-up: 1,500,000 RWF"
+                      : "Silver: 2,000,001–5,000,000 RWF · Gold: 5,000,001–10,000,000 RWF"}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       ) : (

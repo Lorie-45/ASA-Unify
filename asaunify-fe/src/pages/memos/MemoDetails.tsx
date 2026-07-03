@@ -1,19 +1,24 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { memosApi } from '../../api/memos.api';
-import { useAuthStore } from '../../store/authStore';
-import Button from '../../components/ui/Button';
-import ApprovalActionModal from '../../components/requests/ApprovalActionModal';
-import { formatDate } from '../../utils/formatDate';
-import { RequestStatus, StageStatus, type StageActionType } from '../../types/enums';
-import type { MemoDto } from '../../types/memo.types';
+import { useCallback, useEffect, useState } from "react";
+import { useParams, Link } from "react-router-dom";
+import { memosApi } from "../../api/memos.api";
+import { useAuthStore } from "../../store/authStore";
+import Button from "../../components/ui/Button";
+import ApprovalActionModal from "../../components/requests/ApprovalActionModal";
+import { formatDate } from "../../utils/formatDate";
+import {
+  RequestStatus,
+  StageStatus,
+  type StageActionType,
+} from "../../types/enums";
+import type { MemoDto } from "../../types/memo.types";
+import { toastApiError, toastSuccess } from "../../utils/toast";
 
 function formatRoleLabel(role: string): string {
   return role
     .toLowerCase()
-    .split('_')
+    .split("_")
     .map((w) => w[0].toUpperCase() + w.slice(1))
-    .join(' ');
+    .join(" ");
 }
 
 export default function MemoDetail() {
@@ -32,7 +37,7 @@ export default function MemoDetail() {
       const data = await memosApi.getMemoById(id);
       setMemo(data);
     } catch (error) {
-      console.error('Failed to load memo:', error);
+      console.error("Failed to load memo:", error);
     } finally {
       setIsLoading(false);
     }
@@ -55,27 +60,39 @@ export default function MemoDetail() {
         comment: comment || undefined,
       });
       setModalAction(null);
+      toastSuccess(
+        modalAction === StageStatus.APPROVED
+          ? "Memo approved"
+          : "Memo rejected",
+      );
       loadMemo();
     } catch (error) {
-      console.error('Failed to process memo action:', error);
+      toastApiError(error, "Failed to process memo action");
     } finally {
       setIsSubmitting(false);
     }
   }
 
   if (isLoading) {
-    return <p className="text-sm text-gray-400 text-center py-12">Loading...</p>;
+    return (
+      <p className="text-sm text-gray-400 text-center py-12">Loading...</p>
+    );
   }
 
   if (!memo) {
-    return <p className="text-sm text-gray-400 text-center py-12">Memo not found.</p>;
+    return (
+      <p className="text-sm text-gray-400 text-center py-12">Memo not found.</p>
+    );
   }
 
   return (
     <div className="max-w-3xl">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <Link to="/memos" className="text-xs text-gray-400 hover:text-gray-600">
+          <Link
+            to="/memos"
+            className="text-xs text-gray-400 hover:text-gray-600"
+          >
             Memos &raquo; {memo.referenceNumber}
           </Link>
           <h1 className="text-2xl font-bold text-teal">{memo.title}</h1>
@@ -129,19 +146,23 @@ export default function MemoDetail() {
                   {formatRoleLabel(stage.assignedRole)}
                 </p>
                 {stage.actedByName && (
-                  <p className="text-xs text-gray-400">by {stage.actedByName}</p>
+                  <p className="text-xs text-gray-400">
+                    by {stage.actedByName}
+                  </p>
                 )}
                 {stage.comment && (
-                  <p className="text-sm text-gray-600 mt-1">"{stage.comment}"</p>
+                  <p className="text-sm text-gray-600 mt-1">
+                    "{stage.comment}"
+                  </p>
                 )}
               </div>
               <span
                 className={`text-sm font-semibold ${
                   stage.status === StageStatus.APPROVED
-                    ? 'text-status-approved'
+                    ? "text-status-approved"
                     : stage.status === StageStatus.REJECTED
-                    ? 'text-status-rejected'
-                    : 'text-status-pending'
+                      ? "text-status-rejected"
+                      : "text-status-pending"
                 }`}
               >
                 {stage.status.charAt(0) + stage.status.slice(1).toLowerCase()}

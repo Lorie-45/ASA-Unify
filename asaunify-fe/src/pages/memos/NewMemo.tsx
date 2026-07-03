@@ -4,6 +4,7 @@ import { Send } from "lucide-react";
 import { memosApi } from "../../api/memos.api";
 import Button from "../../components/ui/Button";
 import { Role } from "../../types/enums";
+import { toastApiError, toastSuccess } from "../../utils/toast";
 
 const ROLE_OPTIONS: { value: Role; label: string }[] = [
   { value: Role.ADMIN, label: "Admin" },
@@ -46,9 +47,10 @@ export default function NewMemo() {
         content,
         approverRoles: selectedRoles,
       });
+      toastSuccess('Memo sent successfully');
       navigate(`/memos/${memo.id}`);
     } catch (err) {
-      console.error("Failed to create memo:", err);
+      toastApiError(err,"Failed to create memo");
       setError("Something went wrong while sending your memo.");
     } finally {
       setIsSubmitting(false);
