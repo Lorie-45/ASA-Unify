@@ -264,10 +264,10 @@ export default function RequestDetail() {
             to="/requests"
             className="text-xs text-gray-400 hover:text-gray-600"
           >
-            Requests &raquo; {request.referenceNumber}
+            Requests &raquo; {request.caseId}
           </Link>
           <h1 className="text-2xl font-bold text-teal">
-            {request.referenceNumber}
+            {request.caseId}
           </h1>
         </div>
 

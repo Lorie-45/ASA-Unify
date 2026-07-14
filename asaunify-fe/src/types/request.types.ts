@@ -24,7 +24,7 @@ export interface AttachmentDto {
 
 export interface RequestResponseDto {
   id: string;
-  referenceNumber: string;
+  caseId: string;
   type: RequestType;
   status: RequestStatus;
   title: string;

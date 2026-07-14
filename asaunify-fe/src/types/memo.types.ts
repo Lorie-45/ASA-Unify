@@ -1,9 +1,15 @@
-import type { Role, RequestStatus, StageStatus, StageActionType } from './enums';
+import type {
+  RequestStatus,
+  StageStatus,
+  StageActionType,
+} from "./enums";
 
 export interface MemoApprovalStageDto {
   id: string;
-  assignedRole: Role;
+  assignedRole: string;
   actedByName: string | null;
+  assignedToId: string | null; // ← add
+  assignedToName: string | null;
   status: StageStatus;
   comment: string | null;
   assignedAt: string;
@@ -29,7 +35,7 @@ export interface MemoDto {
 export interface CreateMemoRequest {
   title: string;
   content: string;
-  approverRoles: Role[];
+  approverIds: string[];
 }
 
 export interface MemoApprovalActionDto {

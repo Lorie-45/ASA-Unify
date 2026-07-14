@@ -143,11 +143,14 @@ export default function MemoDetail() {
             >
               <div>
                 <p className="text-sm font-medium text-gray-900">
+                  {stage.assignedToName ?? formatRoleLabel(stage.assignedRole)}
+                </p>
+                <p className="text-xs text-gray-400">
                   {formatRoleLabel(stage.assignedRole)}
                 </p>
                 {stage.actedByName && (
-                  <p className="text-xs text-gray-400">
-                    by {stage.actedByName}
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Acted by {stage.actedByName}
                   </p>
                 )}
                 {stage.comment && (

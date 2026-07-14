@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePermissions } from "../hooks/usePermissions";
 import { requestsApi } from "../api/requests.api";
-// import { useAuthStore } from "../store/authStore";
 import StatCard from "../components/ui/StatCard";
 import SearchFilterBar from "../components/ui/SearchFilterBar";
 import DataTable, { type Column } from "../components/ui/DataTable";
@@ -23,6 +22,7 @@ export default function Dashboard() {
   const [pendingApprovals, setPendingApprovals] = useState<
     RequestResponseDto[]
   >([]);
+  const [pendingMemos, setPendingMemos] = useState<MemoDto[]>([]);
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [myTrips, setMyTrips] = useState<VehicleTripAssignmentDto[]>([]);
@@ -51,8 +51,14 @@ export default function Dashboard() {
         }
 
         if (canApprove) {
-          const pending = await requestsApi.getPendingForRole();
-          setPendingApprovals(pending);
+          const [pending, memos] = await Promise.allSettled([
+            requestsApi.getPendingForRole(),
+            memosApi.getPendingForRole(),
+          ]);
+          if (pending.status === "fulfilled")
+            setPendingApprovals(pending.value);
+          if (memos.status === "fulfilled") setPendingMemos(memos.value);
+          // setPendingApprovals(pending);
         }
       }
     } catch (error) {
@@ -79,11 +85,11 @@ export default function Dashboard() {
   const filteredActive = activeRequests.filter(
     (r) =>
       r.title.toLowerCase().includes(search.toLowerCase()) ||
-      r.referenceNumber.toLowerCase().includes(search.toLowerCase()),
+      r.caseId.toLowerCase().includes(search.toLowerCase()),
   );
 
   const columns: Column<RequestResponseDto>[] = [
-    { header: "Case Number", accessor: (r) => r.referenceNumber },
+    { header: "Case Number", accessor: (r) => r.caseId },
     { header: "Type", accessor: (r) => formatType(r.type) },
     { header: "Submitted", accessor: (r) => formatDate(r.createdAt) },
     {
@@ -138,8 +144,8 @@ export default function Dashboard() {
             {canApprove && (
               <StatCard
                 title="Pending Approvals"
-                value={pendingApprovals.length}
-                subtitle="Requests waiting on your review"
+                value={pendingApprovals.length + pendingMemos.length}
+                subtitle="Requests and memos waiting on your review"
                 onClick={() => navigate("/approvals")}
               />
             )}
@@ -266,6 +272,8 @@ function currentStageLabel(request: RequestResponseDto): string {
 
 import { requestsApi as api } from "../api/requests.api";
 import { StageStatus } from "../types/enums";
+import { memosApi } from "../api/memos.api";
+import type { MemoDto } from "../types/memo.types";
 
 function PendingApprovalCard({
   request,

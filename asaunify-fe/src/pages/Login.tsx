@@ -63,13 +63,10 @@ export default function Login() {
           <div className="absolute inset-0 opacity-90 bg-gradient-to-tr from-teal-dark via-teal to-primary" />
           <div className="relative z-10 flex flex-col items-center text-white text-center">
             <img
-              src="/asa-logo-white.png"
+              src="/Asa-logo-white.png"
               alt="ASA International"
-              className="h-20 mb-4"
+              className="h-30 mb-4"
             />
-            <h1 className="text-2xl font-bold tracking-wide">
-              ASA INTERNATIONAL
-            </h1>
           </div>
         </div>
 
