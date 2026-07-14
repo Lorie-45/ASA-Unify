@@ -58,25 +58,41 @@ public class LoanWorkflowStrategy implements WorkflowStrategy {
             ApprovalStage stage,
             StageStatus action) {
 
-        if (action == StageStatus.REJECTED) {
-            // One rejection = entire loan request rejected immediately
-            request.setStatus(RequestStatus.REJECTED);
-            requestRepository.save(request);
-            notificationService.notifyRejection(request, stage);
+        // Get all parallel stages for this request
+        List<ApprovalStage> allStages = approvalStageRepository
+                .findByRequestOrderByStageIndexAsc(request);
+
+        long totalStages = allStages.size();
+        long actedStages = allStages.stream()
+                .filter(s -> s.getStatus() != StageStatus.PENDING)
+                .count();
+        long rejectedStages = allStages.stream()
+                .filter(s -> s.getStatus() == StageStatus.REJECTED)
+                .count();
+
+        log.info("Loan parallel stages: total={} acted={} rejected={}",
+                totalStages, actedStages, rejectedStages);
+
+        // Not all approvers have acted yet — wait for the rest
+        if (actedStages < totalStages) {
+            log.info("Waiting for remaining {} approvers to act",
+                    totalStages - actedStages);
             return;
         }
 
-        // Stage approved — check if ALL parallel stages are now approved
-        boolean allApproved = approvalStageRepository
-                .areAllStagesApproved(request);
-
-        if (allApproved) {
-            // Every approver has approved — loan request is complete
-            request.setStatus(RequestStatus.COMPLETED);
+        // All have acted — determine final outcome
+        if (rejectedStages > 0) {
+            request.setStatus(RequestStatus.REJECTED);
             requestRepository.save(request);
-            notificationService.notifyCompleted(request);
+            notificationService.notifyRejection(request, stage);
+            log.info("Loan {} rejected — {}/{} rejections",
+                    request.getCaseId(), rejectedStages, totalStages);
+        } else {
+            request.setStatus(RequestStatus.APPROVED);
+            requestRepository.save(request);
+            notificationService.notifyApproved(request);
+            log.info("Loan {} approved unanimously", request.getCaseId());
         }
-        // If not all approved yet — do nothing, wait for remaining approvers
     }
 
     @Override

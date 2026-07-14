@@ -42,4 +42,12 @@ public interface MemoApprovalStageRepo extends JpaRepository<MemoApprovalStage, 
     @Query("SELECT COUNT(s) > 0 FROM MemoApprovalStage s " +
             "WHERE s.memo = :memo AND s.status = 'REJECTED'")
     boolean hasAnyRejectedStage(Memo memo);
+
+    // Find stage assigned to a specific user
+    Optional<MemoApprovalStage> findByMemoAndAssignedToAndStatus(
+            Memo memo, User assignedTo, StageStatus status);
+
+    // Find stage assigned to a role with specific status
+    Optional<MemoApprovalStage> findByMemoAndAssignedRoleAndStatus(
+            Memo memo, Role assignedRole, StageStatus status);
 }

@@ -4,6 +4,7 @@ package com.asa.asaunify.repos;
 import com.asa.asaunify.entity.Memo;
 import com.asa.asaunify.entity.User;
 import com.asa.asaunify.enums.RequestStatus;
+import com.asa.asaunify.enums.Role;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -43,9 +44,19 @@ public interface MemoRepo extends JpaRepository<Memo, UUID> {
 
     // All memos that are pending and have a specific role
     // in their approval stages — used to notify approvers
+//    @Query("SELECT DISTINCT m FROM Memo m JOIN m.approvalStages s " +
+//            "WHERE s.assignedRole = :role AND s.status = 'PENDING'")
+//    List<Memo> findPendingMemosByRole(
+//            @Param("role") com.asa.asaunify.enums.Role role
+//    );
+
     @Query("SELECT DISTINCT m FROM Memo m JOIN m.approvalStages s " +
-            "WHERE s.assignedRole = :role AND s.status = 'PENDING'")
-    List<Memo> findPendingMemosByRole(
-            @Param("role") com.asa.asaunify.enums.Role role
+            "WHERE (s.assignedTo = :user OR s.assignedRole = :role) " +
+            "AND s.status = 'PENDING' " +
+            "AND m.status = 'PENDING'")
+    List<Memo> findPendingMemosByRoleOrUser(
+            @Param("user") User user,
+            @Param("role") Role role
     );
+
 }

@@ -16,6 +16,7 @@ import com.asa.asaunify.enums.StageStatus;
 import com.asa.asaunify.logging.AuditService;
 import com.asa.asaunify.repos.MemoApprovalStageRepo;
 import com.asa.asaunify.repos.MemoRepo;
+import com.asa.asaunify.repos.UserRepo;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,14 +37,95 @@ public class MemoService {
     private final MemoApprovalStageRepo memoApprovalStageRepository;
     private final NotificationService notificationService;
     private final AuditService auditService;
+    private final UserRepo userRepository;
 
     // ─── Create & Submit ──────────────────────────────────────
+//
+//    @Transactional
+//    public MemoDto createMemo(
+//            CreateMemoRequest dto,
+//            User author,
+//            HttpServletRequest httpRequest) {
+//
+//        Memo memo = Memo.builder()
+//                .referenceNumber(generateReferenceNumber())
+//                .title(dto.getTitle())
+//                .content(dto.getContent())
+//                .author(author)
+//                .status(RequestStatus.PENDING)
+//                .build();
+//
+//        Memo saved = memoRepository.save(memo);
+//
+//        // Create one parallel approval stage per selected role
+//        for (Role role : dto.getApproverRoles()) {
+//            MemoApprovalStage stage = MemoApprovalStage.builder()
+//                    .memo(saved)
+//                    .assignedRole(role)
+//                    .status(StageStatus.PENDING)
+//                    .build();
+//            memoApprovalStageRepository.save(stage);
+//        }
+//
+//        // Notify all selected approver roles immediately
+//        notificationService.notifyMemoSubmitted(saved);
+//
+//        auditService.log(
+//                author,
+//                ActionType.MEMO_CREATED,
+//                "MEMO",
+//                saved.getId().toString(),
+//                "MEMOS",
+//                httpRequest
+//        );
+//
+//        return toDTO(memoRepository.findById(saved.getId()).orElseThrow());
+//    }
+
+
+//    @Transactional
+//    public MemoDto createMemo(CreateMemoRequest dto, User author) {
+//
+//        Memo memo = Memo.builder()
+//                .referenceNumber(generateReferenceNumber())
+//                .title(dto.getTitle())
+//                .content(dto.getContent())
+//                .author(author)
+//                .status(RequestStatus.PENDING)
+//                .build();
+//
+//        Memo saved = memoRepository.save(memo);
+//
+//        // Look up each approver by ID and create a stage per role
+//        List<MemoApprovalStage> stages = dto.getApproverIds().stream()
+//                .map(approverId -> {
+//                    User approver = userRepository.findById(approverId)
+//                            .orElseThrow(() -> new IllegalArgumentException(
+//                                    "Approver not found: " + approverId
+//                            ));
+//                    return MemoApprovalStage.builder()
+//                            .memo(saved)
+//                            .assignedRole(approver.getRole())
+//                            .assignedTo(approver)        // ← specific person
+//                            .status(StageStatus.PENDING)
+//                            .assignedAt(LocalDateTime.now())
+//                            .build();
+//                })
+//                .collect(Collectors.toList());
+//
+//        memoApprovalStageRepository.saveAll(stages);
+//        saved.setApprovalStages(stages);
+//
+//        notificationService.notifyMemoSubmitted(saved);
+//
+//        return toDTO(saved);
+//    }
 
     @Transactional
     public MemoDto createMemo(
             CreateMemoRequest dto,
             User author,
-            HttpServletRequest httpRequest) {
+            HttpServletRequest httpRequest) {  // ← add this parameter
 
         Memo memo = Memo.builder()
                 .referenceNumber(generateReferenceNumber())
@@ -55,17 +137,25 @@ public class MemoService {
 
         Memo saved = memoRepository.save(memo);
 
-        // Create one parallel approval stage per selected role
-        for (Role role : dto.getApproverRoles()) {
-            MemoApprovalStage stage = MemoApprovalStage.builder()
-                    .memo(saved)
-                    .assignedRole(role)
-                    .status(StageStatus.PENDING)
-                    .build();
-            memoApprovalStageRepository.save(stage);
-        }
+        List<MemoApprovalStage> stages = dto.getApproverIds().stream()
+                .map(approverId -> {
+                    User approver = userRepository.findById(approverId)
+                            .orElseThrow(() -> new IllegalArgumentException(
+                                    "Approver not found: " + approverId
+                            ));
+                    return MemoApprovalStage.builder()
+                            .memo(saved)
+                            .assignedRole(approver.getRole())
+                            .assignedTo(approver)
+                            .status(StageStatus.PENDING)
+                            .assignedAt(LocalDateTime.now())
+                            .build();
+                })
+                .collect(Collectors.toList());
 
-        // Notify all selected approver roles immediately
+        memoApprovalStageRepository.saveAll(stages);
+        saved.setApprovalStages(stages);
+
         notificationService.notifyMemoSubmitted(saved);
 
         auditService.log(
@@ -74,10 +164,10 @@ public class MemoService {
                 "MEMO",
                 saved.getId().toString(),
                 "MEMOS",
-                httpRequest
+                httpRequest  // ← now used for audit
         );
 
-        return toDTO(memoRepository.findById(saved.getId()).orElseThrow());
+        return toDTO(saved);
     }
 
     // ─── Approve / Reject ─────────────────────────────────────
@@ -107,8 +197,17 @@ public class MemoService {
         }
 
         // Find the stage assigned to current user's role
+//        MemoApprovalStage stage = memoApprovalStageRepository
+//                .findByMemoAndAssignedRole(memo, currentUser.getRole())
+//                .orElseThrow(() -> new IllegalArgumentException(
+//                        "You are not an approver for this memo"
+//                ));
+
+        // NEW — checks specific user first, falls back to role
         MemoApprovalStage stage = memoApprovalStageRepository
-                .findByMemoAndAssignedRole(memo, currentUser.getRole())
+                .findByMemoAndAssignedToAndStatus(memo, currentUser, StageStatus.PENDING)
+                .or(() -> memoApprovalStageRepository
+                        .findByMemoAndAssignedRoleAndStatus(memo, currentUser.getRole(), StageStatus.PENDING))
                 .orElseThrow(() -> new IllegalArgumentException(
                         "You are not an approver for this memo"
                 ));
@@ -183,14 +282,34 @@ public class MemoService {
                 .collect(Collectors.toList());
     }
 
+//    @Transactional(readOnly = true)
+//    public List<MemoDto> getPendingMemosForRole(User user) {
+//        return memoRepository
+//                .findPendingMemosByRole(user.getRole())
+//                .stream()
+//                .map(this::toDTO)
+//                .collect(Collectors.toList());
+//    }
+
+//    @Transactional(readOnly = true)
+//    public List<MemoDto> getPendingMemosForRole(User user) {
+//        return memoRepository
+//                .findPendingMemosByRoleOrUser(user.getRole(), user)
+//                .stream()
+//                .map(this::toDTO)
+//                .collect(Collectors.toList());
+//    }
+
+
     @Transactional(readOnly = true)
     public List<MemoDto> getPendingMemosForRole(User user) {
         return memoRepository
-                .findPendingMemosByRole(user.getRole())
+                .findPendingMemosByRoleOrUser(user, user.getRole())
                 .stream()
                 .map(this::toDTO)
                 .collect(Collectors.toList());
     }
+
 
     @Transactional(readOnly = true)
     public List<MemoDto> getAllMemos() {
@@ -252,20 +371,38 @@ public class MemoService {
                 .build();
     }
 
-    private MemoDto.MemoApprovalStageDTO toStageDTO(
-            MemoApprovalStage stage) {
+//    private MemoDto.MemoApprovalStageDTO toStageDTO(
+//            MemoApprovalStage stage) {
+//        return MemoDto.MemoApprovalStageDTO.builder()
+//                .id(stage.getId())
+//                .assignedRole(stage.getAssignedRole())
+//                .actedByName(
+//                        stage.getActedBy() != null
+//                                ? stage.getActedBy().getFullName()
+//                                : null
+//                )
+//                .status(stage.getStatus())
+//                .comment(stage.getComment())
+//                .assignedAt(stage.getAssignedAt())
+//                .actedAt(stage.getActedAt())
+//                .build();
+//    }
+
+    private MemoDto.MemoApprovalStageDTO toStageDTO(MemoApprovalStage stage) {
         return MemoDto.MemoApprovalStageDTO.builder()
                 .id(stage.getId())
-                .assignedRole(stage.getAssignedRole())
-                .actedByName(
-                        stage.getActedBy() != null
-                                ? stage.getActedBy().getFullName()
-                                : null
-                )
+                .assignedRole(stage.getAssignedRole())           // ← Role enum
+                .assignedToId(stage.getAssignedTo() != null
+                        ? stage.getAssignedTo().getId() : null)
+                .assignedToName(stage.getAssignedTo() != null
+                        ? stage.getAssignedTo().getFullName() : null)
+                .actedByName(stage.getActedBy() != null
+                        ? stage.getActedBy().getFullName() : null)
                 .status(stage.getStatus())
                 .comment(stage.getComment())
                 .assignedAt(stage.getAssignedAt())
                 .actedAt(stage.getActedAt())
                 .build();
     }
+
 }

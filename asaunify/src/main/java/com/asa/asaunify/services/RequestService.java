@@ -151,13 +151,6 @@ public class RequestService {
         log.info("User: {} Role: {}", currentUser.getEmail(), currentUser.getRole());
         log.info("Request ID: {}", request.getId());
 
-        // Validate request is still pending
-        if (request.getStatus() != RequestStatus.PENDING) {
-            throw new IllegalArgumentException(
-                    "Request is not in a pending state"
-            );
-        }
-
         // Validate comment is provided on rejection
         if (dto.getAction() == StageStatus.REJECTED &&
                 (dto.getComment() == null || dto.getComment().isBlank())) {
@@ -167,7 +160,25 @@ public class RequestService {
         }
 
         // Find the stage assigned to the current user's role
+        // For parallel stages, allow action even if request is REJECTED
+        // (another parallel approver may have already rejected)
         ApprovalStage stage = findActiveStageForUser(request, currentUser);
+
+        // Validate the request can still be acted on
+        // Sequential: must be PENDING
+        // Parallel: allow action if stage is still PENDING regardless of request status
+        if (!stage.isParallel() && request.getStatus() != RequestStatus.PENDING) {
+            throw new IllegalArgumentException(
+                    "Request is not in a pending state"
+            );
+        }
+
+        // Completed requests can never be acted on
+        if (request.getStatus() == RequestStatus.COMPLETED) {
+            throw new IllegalArgumentException(
+                    "Request has already been completed"
+            );
+        }
 
         // Check if logistics action
         if (currentUser.getRole() == Role.LOGISTICS &&
@@ -179,26 +190,25 @@ public class RequestService {
             );
 
         } else {
+            // Single call to workflow engine — removed the duplicate
             workflowEngine.processAction(
                     request, stage, dto.getAction(), dto.getComment()
             );
         }
 
-        try {
-            workflowEngine.processAction(request, stage, dto.getAction(), dto.getComment());
-            log.info("WorkflowEngine processAction completed successfully");
-        } catch (Exception e) {
-            log.error("WorkflowEngine processAction FAILED", e);
-            throw e;
-        }
+        // Refresh request after workflow engine processed it
+        Request updatedRequest = requestRepository
+                .findById(requestId).orElseThrow();
 
-// Refresh request after workflow engine processed it
-        Request updatedRequest = requestRepository.findById(requestId).orElseThrow();
-
-// Only stamp rejection fields if workflow engine marked it as rejected
+        // Only stamp rejection fields if:
+        // 1. The workflow engine has finalized the request as REJECTED
+        // 2. The current user is the one who triggered the rejection
+        // For parallel loans — only stamp when ALL have acted and outcome is REJECTED
         if (updatedRequest.getStatus() == RequestStatus.REJECTED &&
-                dto.getAction() == StageStatus.REJECTED) {
+                dto.getAction() == StageStatus.REJECTED &&
+                updatedRequest.getRejectedBy() == null) { // ← don't overwrite if already set
             updatedRequest.setRejectedBy(currentUser);
+            updatedRequest.setRejectedAt(LocalDateTime.now());
             updatedRequest.setRejectionReason(dto.getComment());
             requestRepository.save(updatedRequest);
         }
@@ -422,6 +432,33 @@ public class RequestService {
 //                .collect(Collectors.toList());
 //    }
 
+//    @Transactional(readOnly = true)
+//    public List<RequestResponseDto> getPendingForRole(User user) {
+//        try {
+//            log.info("=== getPendingForRole START ===");
+//            log.info("User: {} Role: {}", user.getEmail(), user.getRole());
+//
+//            List<ApprovalStage> stages = approvalStageRepository
+//                    .findByAssignedRoleAndStatus(user.getRole(), StageStatus.PENDING);
+//
+//            log.info("Found {} stages", stages.size());
+//
+//            List<RequestResponseDto> result = stages.stream()
+//                    .map(ApprovalStage::getRequest)
+//                    .filter(r -> r.getStatus() == RequestStatus.PENDING)
+//                    .map(this::toDTO)
+//                    .collect(Collectors.toList());
+//
+//            log.info("Returning {} results", result.size());
+//            return result;
+//
+//        } catch (Exception e) {
+//            log.error("=== getPendingForRole FAILED ===", e);
+//            return List.of();
+//        }
+//    }
+
+
     @Transactional(readOnly = true)
     public List<RequestResponseDto> getPendingForRole(User user) {
         try {
@@ -435,7 +472,18 @@ public class RequestService {
 
             List<RequestResponseDto> result = stages.stream()
                     .map(ApprovalStage::getRequest)
-                    .filter(r -> r.getStatus() == RequestStatus.PENDING)
+                    .distinct() // avoid duplicates from multiple stages
+                    .filter(r ->
+                            // Sequential stages — only show if request is still PENDING
+                            // Parallel stages — show even if request was prematurely
+                            // marked REJECTED, as long as it's not COMPLETED
+                            r.getStatus() == RequestStatus.PENDING ||
+                                    (r.getStatus() == RequestStatus.REJECTED &&
+                                            stages.stream()
+                                                    .anyMatch(s -> s.getRequest().getId().equals(r.getId())
+                                                            && s.isParallel()))
+                    )
+                    .filter(r -> r.getStatus() != RequestStatus.COMPLETED)
                     .map(this::toDTO)
                     .collect(Collectors.toList());
 

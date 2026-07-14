@@ -55,6 +55,9 @@ public class MemoDto {
         // The role assigned to this stage
         private Role assignedRole;
 
+        private UUID assignedToId;       // ← add
+        private String assignedToName;
+
         // The specific user who acted — null until acted
         private String actedByName;
 

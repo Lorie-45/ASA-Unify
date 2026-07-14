@@ -9,6 +9,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.util.List;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -22,5 +23,5 @@ public class CreateMemoRequest {
 
     @NotNull(message = "At least one approver role is required")
     @NotEmpty(message = "At least one approver role is required")
-    private List<Role> approverRoles;
+    private List<UUID> approverIds;
 }

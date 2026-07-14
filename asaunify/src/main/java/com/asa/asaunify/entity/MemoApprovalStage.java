@@ -32,6 +32,10 @@ public class MemoApprovalStage {
     @Column(name = "assigned_role", nullable = false)
     private Role assignedRole;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_to_id")
+    private User assignedTo;
+
     // The specific user who acted
     // null until someone with that role acts
     @ManyToOne(fetch = FetchType.LAZY)
