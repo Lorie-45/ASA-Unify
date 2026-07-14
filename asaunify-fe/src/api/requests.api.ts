@@ -60,11 +60,10 @@ export const requestsApi = {
   },
 
   getMyTrips: async (): Promise<VehicleTripAssignmentDto[]> => {
-  const response = await api.get<VehicleTripAssignmentDto[]>(
-    '/requests/my-trips'
-  );
-  return response.data;
-},
+    const response =
+      await api.get<VehicleTripAssignmentDto[]>("/requests/my-trips");
+    return response.data;
+  },
 
   // ─── Queries ─────────────────────────────────────────────
 
@@ -95,6 +94,12 @@ export const requestsApi = {
     return response.data;
   },
 
+  getLoanRequests: async (): Promise<RequestResponseDto[]> => {
+    const response =
+      await api.get<RequestResponseDto[]>("/requests/loans");
+    return response.data;
+  },
+
   // ─── Reports — Case views (scoped by role server-side) ──
 
   getCases: async (params: {
@@ -114,7 +119,12 @@ export const requestsApi = {
 
   updateDraft: async (
     id: string,
-    dto: { title: string; details: string; notes?: string;  extraFields?: Record<string, unknown> },
+    dto: {
+      title: string;
+      details: string;
+      notes?: string;
+      extraFields?: Record<string, unknown>;
+    },
   ): Promise<RequestResponseDto> => {
     const response = await api.patch<RequestResponseDto>(
       `/requests/${id}`,

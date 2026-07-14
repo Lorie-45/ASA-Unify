@@ -11,6 +11,7 @@ import {
   Building2,
   ScrollText,
   Car,
+  Banknote,
 } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
 import { Role } from "../../types/enums";
@@ -49,6 +50,18 @@ const NAV_ITEMS: NavItem[] = [
       Role.LOGISTICS,
       Role.PROCUREMENT,
       Role.FLEET_MANAGER,
+      Role.LOAN_OFFICER,
+      Role.MSME_OFFICER,
+      Role.RM,
+      Role.CREDIT_OFFICER,
+    ],
+  },
+    {
+    label: "Loan Requests",
+    to: "/loan-requests",
+    icon: <Banknote size={20} />,
+    roles: [
+      Role.ADMIN,
       Role.LOAN_OFFICER,
       Role.MSME_OFFICER,
       Role.RM,

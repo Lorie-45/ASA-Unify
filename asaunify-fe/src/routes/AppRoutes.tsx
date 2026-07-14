@@ -20,6 +20,7 @@ import AdminUsers from "../pages/admin/Users";
 import AdminDepartments from "../pages/admin/Departments";
 import Settings from "../pages/Settings";
 import MyTrips from "../pages/driver/MyTrips";
+import LoanRequests from "../pages/LoanRequests";
 
 export default function AppRoutes() {
   return (
@@ -42,6 +43,23 @@ export default function AppRoutes() {
           <Route path="/requests" element={<RequestList />} />
           <Route path="/requests/new" element={<NewRequest />} />
           <Route path="/requests/:id" element={<RequestDetail />} />
+
+          <Route
+            path="/loan-requests"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  Role.LOAN_OFFICER,
+                  Role.MSME_OFFICER,
+                  Role.RM,
+                  Role.CREDIT_OFFICER,
+                  Role.ADMIN,
+                ]}
+              >
+                <LoanRequests />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Approvals — only for approver-capable roles */}
           <Route

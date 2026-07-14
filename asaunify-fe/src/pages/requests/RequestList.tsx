@@ -5,7 +5,7 @@ import { requestsApi } from "../../api/requests.api";
 import { usePermissions } from "../../hooks/usePermissions";
 import StatusBadge from "../../components/ui/StatusBadge";
 import { formatRelativeDay } from "../../utils/formatDate";
-import { RequestStatus } from "../../types/enums";
+import { RequestStatus, RequestType } from "../../types/enums";
 import type { RequestResponseDto } from "../../types/request.types";
 import Button from "../../components/ui/Button";
 
@@ -24,7 +24,8 @@ export default function RequestList() {
         isAdmin || isAuditor
           ? await requestsApi.getAllRequests()
           : await requestsApi.getMyRequests();
-      setRequests(data);
+
+      setRequests(data.filter((r) => r.type !== RequestType.LOAN));
     } catch (error) {
       console.error("Failed to load requests:", error);
     } finally {
@@ -148,7 +149,6 @@ export default function RequestList() {
                   </button>
                 </div>
                 <p className="font-semibold text-gray-900 mb-3">{r.title}</p>
-                <p className="font-semibold text-gray-900 mb-3">{r.caseId}</p>
                 <p className="text-xs text-gray-400 mb-1">Status</p>
                 <StatusBadge status={r.status} />
               </div>
