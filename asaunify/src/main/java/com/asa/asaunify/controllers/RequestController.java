@@ -151,6 +151,15 @@ public class RequestController {
         return ResponseEntity.ok(requestService.getMyTrips(currentUser));
     }
 
+    // GET /api/requests/loans
+    @GetMapping("/loans")
+    @PreAuthorize("hasAnyRole('LOAN_OFFICER', 'MSME_OFFICER', 'RM', 'CREDIT_OFFICER', 'ADMIN')")
+    public ResponseEntity<List<RequestResponseDto>> getLoanRequests(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        User currentUser = userService.findUserByEmail(userDetails.getUsername());
+        return ResponseEntity.ok(requestService.getLoanRequests(currentUser));
+    }
+
     // ─── Mark trip as seen (Driver only) ─────────────────────
 
     // POST /api/requests/{id}/seen

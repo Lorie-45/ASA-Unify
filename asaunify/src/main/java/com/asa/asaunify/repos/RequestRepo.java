@@ -91,6 +91,9 @@ public interface RequestRepo extends JpaRepository<Request, UUID> {
             @Param("excludedStatuses") List<RequestStatus> excludedStatuses
     );
 
+    List<Request> findByType(RequestType type);
+    List<Request> findByTypeAndDepartment(RequestType type, Department department);
+
     // ─── Dashboard KPIs ──────────────────────────────────────
 
     long countByStatus(RequestStatus status);

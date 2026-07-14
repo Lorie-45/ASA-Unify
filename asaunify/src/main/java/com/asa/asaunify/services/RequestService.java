@@ -268,6 +268,25 @@ public class RequestService {
         return toDTO(request);
     }
 
+    @Transactional(readOnly = true)
+    public List<RequestResponseDto> getLoanRequests(User user) {
+        if (user.getRole() == Role.ADMIN) {
+            // Admin sees all loan requests
+            return requestRepository.findByType(RequestType.LOAN)
+                    .stream()
+                    .map(this::toDTO)
+                    .collect(Collectors.toList());
+        }
+        // Others see loan requests from their department
+        return requestRepository.findByTypeAndDepartment(
+                        RequestType.LOAN,
+                        user.getDepartment()
+                )
+                .stream()
+                .map(this::toDTO)
+                .collect(Collectors.toList());
+    }
+
     // ─── Assign Driver (Fleet Manager only) ───────────────────
 
     @Transactional
