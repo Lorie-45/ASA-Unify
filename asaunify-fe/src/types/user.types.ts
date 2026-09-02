@@ -40,7 +40,7 @@ export interface AuthRequest {
 
 export interface AuthResponse {
   accessToken: string;
-  refreshToken: string;
+  refreshToken?: string;
   tokenType: string;
   userId: string;
   fullName: string;

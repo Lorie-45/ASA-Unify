@@ -63,6 +63,7 @@ public class SecurityConfig {
     private final JwtFilter jwtFilter;
     private final UserDetailsService userDetailsService;
     private final CorsConfigurationSource corsConfigurationSource; // ← add this
+    private final RestAuthenticationEntryPoint authenticationEntryPoint;
 
     // API docs are public ONLY when explicitly enabled (dev). Defaults to
     // false so production does not expose the Swagger UI / OpenAPI schema.
@@ -76,6 +77,10 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource)) // ← add this
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> {
+                        // Let error dispatches render their real status instead
+                        // of being re-checked and returned as 401/403.
+                        auth.dispatcherTypeMatchers(
+                                jakarta.servlet.DispatcherType.ERROR).permitAll();
                         auth.requestMatchers("/api/auth/**").permitAll();
                         auth.requestMatchers("/ws/**").permitAll();
                         // Only expose docs publicly in non-production (flag on).
@@ -88,6 +93,9 @@ public class SecurityConfig {
                         }
                         auth.anyRequest().authenticated();
                 })
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                )
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )

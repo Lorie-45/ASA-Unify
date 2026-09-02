@@ -3,8 +3,10 @@ import { persist } from 'zustand/middleware';
 import type { Role } from '../types/enums';
 
 interface AuthState {
+  // Access token is held in memory ONLY (never persisted) so it cannot be
+  // stolen from localStorage via XSS. On reload it is re-obtained via the
+  // httpOnly refresh cookie (silent refresh in App).
   accessToken: string | null;
-  refreshToken: string | null;
   userId: string | null;
   fullName: string | null;
   email: string | null;
@@ -14,7 +16,6 @@ interface AuthState {
 
   setAuth: (data: {
     accessToken: string;
-    refreshToken: string;
     userId: string;
     fullName: string;
     email: string;
@@ -29,7 +30,6 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       accessToken: null,
-      refreshToken: null,
       userId: null,
       fullName: null,
       email: null,
@@ -40,7 +40,6 @@ export const useAuthStore = create<AuthState>()(
       setAuth: (data) =>
         set({
           accessToken: data.accessToken,
-          refreshToken: data.refreshToken,
           userId: data.userId,
           fullName: data.fullName,
           email: data.email,
@@ -54,7 +53,6 @@ export const useAuthStore = create<AuthState>()(
       logout: () =>
         set({
           accessToken: null,
-          refreshToken: null,
           userId: null,
           fullName: null,
           email: null,
@@ -64,7 +62,16 @@ export const useAuthStore = create<AuthState>()(
         }),
     }),
     {
-      name: 'asaunify-auth', 
+      name: 'asaunify-auth',
+      // Persist only non-sensitive identity fields — NEVER the access token.
+      partialize: (state) => ({
+        userId: state.userId,
+        fullName: state.fullName,
+        email: state.email,
+        role: state.role,
+        departmentName: state.departmentName,
+        isAuthenticated: state.isAuthenticated,
+      }),
     }
   )
 );

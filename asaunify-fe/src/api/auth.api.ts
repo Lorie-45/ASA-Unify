@@ -14,12 +14,9 @@ export const authApi = {
     await api.post('/auth/logout');
   },
 
-  refresh: async (refreshToken: string): Promise<AuthResponse> => {
-    const response = await api.post<AuthResponse>(
-      '/auth/refresh',
-      {},
-      { headers: { 'Refresh-Token': refreshToken } }
-    );
+  // Refresh token is sent automatically via the httpOnly cookie.
+  refresh: async (): Promise<AuthResponse> => {
+    const response = await api.post<AuthResponse>('/auth/refresh', {});
     return response.data;
   },
 };

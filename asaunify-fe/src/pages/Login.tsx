@@ -31,7 +31,6 @@ export default function Login() {
 
       setAuth({
         accessToken: response.accessToken,
-        refreshToken: response.refreshToken,
         userId: response.userId,
         fullName: response.fullName,
         email: response.email,
@@ -44,10 +43,17 @@ export default function Login() {
     toastSuccess(`Welcome back, ${response.fullName}!`);
       navigate('/dashboard');
     } catch (err) {
-      if (axios.isAxiosError(err) && err.response?.status === 403) {
-        toastError('Invalid email or password');
+      if (axios.isAxiosError(err)) {
+        const status = err.response?.status;
+        if (status === 429) {
+          toastError('Too many failed attempts. Please try again later.');
+        } else if (status === 401 || status === 403) {
+          toastError('Invalid email or password');
+        } else {
+          toastApiError(err);
+        }
       } else {
-        toastApiError(err)
+        toastApiError(err);
       }
     } finally {
       setIsLoading(false);
