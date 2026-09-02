@@ -23,6 +23,7 @@ public class JwtFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
     private final UserDetailsService userDetailsService;
+    private final TokenRevocationService tokenRevocationService;
 
     @Override
     protected void doFilterInternal(
@@ -49,6 +50,12 @@ public class JwtFilter extends OncePerRequestFilter {
             // A refresh token must never grant access to protected endpoints —
             // it can only be exchanged at /api/auth/refresh.
             if (!jwtUtil.isAccessToken(token)) {
+                filterChain.doFilter(request, response);
+                return;
+            }
+
+            // Reject tokens explicitly revoked (e.g. by logout).
+            if (tokenRevocationService.isRevoked(jwtUtil.extractJti(token))) {
                 filterChain.doFilter(request, response);
                 return;
             }
@@ -81,10 +88,14 @@ public class JwtFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
-    // Skip JWT filter for public endpoints
+    // Skip JWT filter for endpoints that don't need an authenticated principal.
+    // NOTE: logout is intentionally NOT skipped — it needs the authenticated
+    // user in order to revoke that user's tokens.
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getServletPath();
-        return path.startsWith("/api/auth/") || path.startsWith("/ws/");
+        return path.equals("/api/auth/login")
+                || path.equals("/api/auth/refresh")
+                || path.startsWith("/ws/");
     }
 }

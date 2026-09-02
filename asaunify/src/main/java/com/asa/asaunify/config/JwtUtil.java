@@ -59,6 +59,7 @@ public class JwtUtil {
     ) {
         return Jwts.builder()
                 .claims(claims)
+                .id(java.util.UUID.randomUUID().toString())   // jti — for revocation
                 .subject(subject)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + expiration))
@@ -75,6 +76,20 @@ public class JwtUtil {
 
     public boolean isTokenExpired(String token) {
         return extractClaims(token).getExpiration().before(new Date());
+    }
+
+    public java.time.Instant extractIssuedAt(String token) {
+        Date iat = extractClaims(token).getIssuedAt();
+        return iat != null ? iat.toInstant() : null;
+    }
+
+    public String extractJti(String token) {
+        return extractClaims(token).getId();
+    }
+
+    public java.time.Instant extractExpiration(String token) {
+        Date exp = extractClaims(token).getExpiration();
+        return exp != null ? exp.toInstant() : null;
     }
 
     // ─── Claims Extraction ───────────────────────────────────

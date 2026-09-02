@@ -13,8 +13,11 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import com.asa.asaunify.config.LoginAttemptService;
+import com.asa.asaunify.config.TokenRevocationService;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.stereotype.Service;
@@ -32,12 +35,29 @@ public class AuthService {
     private final JwtUtil jwtUtil;
     private final AuthenticationManager authenticationManager;
     private final AuditService auditService;
+    private final LoginAttemptService loginAttemptService;
+    private final TokenRevocationService tokenRevocationService;
 
 
     @Transactional
     public AuthResponse login(AuthRequest request, HttpServletRequest httpRequest){
 
-        User user = userRepository.findByEmail(request.getEmail()).orElseThrow(()-> new BadCredentialsException("Invalid email or password"));
+        // Brute-force guard: block after repeated failures for this email+IP.
+        String attemptKey = (request.getEmail() == null ? "" : request.getEmail().toLowerCase())
+                + "|" + getClientIp(httpRequest);
+        if (loginAttemptService.isBlocked(attemptKey)) {
+            throw new LockedException(
+                    "Too many failed login attempts. Try again in "
+                            + loginAttemptService.getLockMinutes() + " minutes."
+            );
+        }
+
+        // Count unknown-email attempts too, so enumeration/guessing is throttled.
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> {
+                    loginAttemptService.loginFailed(attemptKey);
+                    return new BadCredentialsException("Invalid email or password");
+                });
 
         try{
 
@@ -47,6 +67,7 @@ public class AuthService {
                             request.getPassword()
                     )
             );
+            loginAttemptService.loginSucceeded(attemptKey);
             String accessToken = jwtUtil.generateAccessToken(user);
             String refreshToken = jwtUtil.generateRefreshToken(user);
 
@@ -73,6 +94,7 @@ public class AuthService {
                     .build();
 
         }catch(AuthenticationException e){
+            loginAttemptService.loginFailed(attemptKey);
             saveLoginHistory(user, httpRequest, "FAILED");
 
             auditService.log(
@@ -91,7 +113,19 @@ public class AuthService {
     }
 
     @Transactional
-    public void logout(String email, HttpServletRequest httpRequest) {
+    public void logout(String email, String token, HttpServletRequest httpRequest) {
+        // Revoke the presented access token so it cannot be replayed after
+        // logout for the remainder of its lifetime.
+        if (token != null) {
+            try {
+                tokenRevocationService.revoke(
+                        jwtUtil.extractJti(token),
+                        jwtUtil.extractExpiration(token));
+            } catch (Exception e) {
+                log.warn("Could not revoke token on logout: {}", e.getMessage());
+            }
+        }
+
         userRepository.findByEmail(email).ifPresent(user -> {
 
             // Find the open session and stamp logout time
