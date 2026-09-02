@@ -120,7 +120,20 @@ public class AuthService {
     }
 
     public AuthResponse refreshToken(String refreshToken) {
-        String email = jwtUtil.extractEmail(refreshToken);
+        // Reject anything that is not a genuine, validly-signed refresh token
+        // (e.g. an access token being replayed here). extractEmail also
+        // verifies the signature and throws on tampering.
+        String email;
+        try {
+            email = jwtUtil.extractEmail(refreshToken);
+            if (!jwtUtil.isRefreshToken(refreshToken)) {
+                throw new BadCredentialsException("Invalid refresh token");
+            }
+        } catch (BadCredentialsException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BadCredentialsException("Invalid refresh token");
+        }
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() ->

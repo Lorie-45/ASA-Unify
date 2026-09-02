@@ -29,8 +29,14 @@ public class JwtUtil {
 
     // ─── Token Generation ────────────────────────────────────
 
+    // Token type claim values — an access token authorizes API calls,
+    // a refresh token may ONLY be exchanged at /api/auth/refresh.
+    public static final String TYPE_ACCESS = "access";
+    public static final String TYPE_REFRESH = "refresh";
+
     public String generateAccessToken(User user) {
         Map<String, Object> claims = new HashMap<>();
+        claims.put("type", TYPE_ACCESS);
         claims.put("role", user.getRole().name());
         claims.put("userId", user.getId().toString());
         claims.put("fullName", user.getFullName());
@@ -41,7 +47,9 @@ public class JwtUtil {
     }
 
     public String generateRefreshToken(User user) {
-        return buildToken(new HashMap<>(), user.getEmail(), refreshExpirationMs);
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("type", TYPE_REFRESH);
+        return buildToken(claims, user.getEmail(), refreshExpirationMs);
     }
 
     private String buildToken(
@@ -77,6 +85,18 @@ public class JwtUtil {
 
     public String extractRole(String token) {
         return extractClaims(token).get("role", String.class);
+    }
+
+    public String extractType(String token) {
+        return extractClaims(token).get("type", String.class);
+    }
+
+    public boolean isAccessToken(String token) {
+        return TYPE_ACCESS.equals(extractType(token));
+    }
+
+    public boolean isRefreshToken(String token) {
+        return TYPE_REFRESH.equals(extractType(token));
     }
 
     public String extractUserId(String token) {

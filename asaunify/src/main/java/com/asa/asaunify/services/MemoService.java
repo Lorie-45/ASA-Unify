@@ -320,8 +320,33 @@ public class MemoService {
     }
 
     @Transactional(readOnly = true)
-    public MemoDto getMemoById(UUID id) {
-        return toDTO(findMemoById(id));
+    public MemoDto getMemoById(UUID id, User currentUser) {
+        Memo memo = findMemoById(id);
+        if (!canView(memo, currentUser)) {
+            // Same response as a genuine miss — no existence disclosure.
+            throw new IllegalArgumentException("Memo not found: " + id);
+        }
+        return toDTO(memo);
+    }
+
+    // Object-level read authorization for a single memo.
+    // A user may view a memo only if they are:
+    //   • ADMIN or AUDITOR, or
+    //   • the author, or
+    //   • an assigned approver (by specific user or by role).
+    private boolean canView(Memo memo, User user) {
+        if (user.getRole() == Role.ADMIN || user.getRole() == Role.AUDITOR) {
+            return true;
+        }
+        if (memo.getAuthor() != null
+                && memo.getAuthor().getId().equals(user.getId())) {
+            return true;
+        }
+        return memo.getApprovalStages() != null
+                && memo.getApprovalStages().stream().anyMatch(s ->
+                        (s.getAssignedTo() != null
+                                && s.getAssignedTo().getId().equals(user.getId()))
+                        || s.getAssignedRole() == user.getRole());
     }
 
     // ─── Helpers ──────────────────────────────────────────────

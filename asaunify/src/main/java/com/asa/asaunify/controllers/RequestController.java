@@ -259,8 +259,13 @@ public class RequestController {
     // GET /api/requests/{id}
     @GetMapping("/{id}")
     public ResponseEntity<RequestResponseDto> getRequestById(
-            @PathVariable UUID id) {
-        return ResponseEntity.ok(requestService.getRequestById(id));
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        User currentUser = userService
+                .findUserByEmail(userDetails.getUsername());
+        return ResponseEntity.ok(
+                requestService.getRequestById(id, currentUser)
+        );
     }
 
     // ─── Inner class for cancel body ──────────────────────────

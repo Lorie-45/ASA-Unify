@@ -44,6 +44,14 @@ public class JwtFilter extends OncePerRequestFilter {
 
         try {
             email = jwtUtil.extractEmail(token);
+
+            // Only ACCESS tokens may authenticate API calls.
+            // A refresh token must never grant access to protected endpoints —
+            // it can only be exchanged at /api/auth/refresh.
+            if (!jwtUtil.isAccessToken(token)) {
+                filterChain.doFilter(request, response);
+                return;
+            }
         } catch (Exception e) {
             // Malformed token — reject
             filterChain.doFilter(request, response);

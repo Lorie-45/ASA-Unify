@@ -114,7 +114,12 @@ public class MemoController {
     // GET /api/memos/{id}
     @GetMapping("/{id}")
     public ResponseEntity<MemoDto> getMemoById(
-            @PathVariable UUID id) {
-        return ResponseEntity.ok(memoService.getMemoById(id));
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        User currentUser = userService
+                .findUserByEmail(userDetails.getUsername());
+        return ResponseEntity.ok(
+                memoService.getMemoById(id, currentUser)
+        );
     }
 }

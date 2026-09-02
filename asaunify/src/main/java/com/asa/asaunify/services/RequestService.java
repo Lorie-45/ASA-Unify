@@ -527,8 +527,38 @@ public class RequestService {
     }
 
     @Transactional(readOnly = true)
-    public RequestResponseDto getRequestById(UUID id) {
-        return toDTO(findRequestById(id));
+    public RequestResponseDto getRequestById(UUID id, User currentUser) {
+        Request request = findRequestById(id);
+        if (!canView(request, currentUser)) {
+            // Same response as a genuine miss so callers cannot probe
+            // which request IDs exist (no existence disclosure).
+            throw new IllegalArgumentException("Request not found: " + id);
+        }
+        return toDTO(request);
+    }
+
+    // Object-level read authorization for a single request.
+    // A user may view a request only if they are:
+    //   • ADMIN or AUDITOR (system-wide oversight), or
+    //   • the initiator, or
+    //   • in the same department as the request (dept head / dept members), or
+    //   • an approver whose role is assigned to one of its stages.
+    private boolean canView(Request request, User user) {
+        if (user.getRole() == Role.ADMIN || user.getRole() == Role.AUDITOR) {
+            return true;
+        }
+        if (request.getInitiator() != null
+                && request.getInitiator().getId().equals(user.getId())) {
+            return true;
+        }
+        if (user.getDepartment() != null
+                && request.getDepartment() != null
+                && request.getDepartment().getId().equals(user.getDepartment().getId())) {
+            return true;
+        }
+        return request.getApprovalStages() != null
+                && request.getApprovalStages().stream()
+                        .anyMatch(s -> s.getAssignedRole() == user.getRole());
     }
 
     @Transactional
