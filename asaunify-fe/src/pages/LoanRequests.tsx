@@ -223,7 +223,7 @@ function LoanCard({
         <button
           onClick={onViewDetails}
           className="text-xs text-gray-400 underline hover:text-gray-600"
-        >
+        >   
           Details
         </button>
       </div>
