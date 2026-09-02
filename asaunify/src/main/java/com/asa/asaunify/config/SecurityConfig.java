@@ -96,6 +96,26 @@ public class SecurityConfig {
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(authenticationEntryPoint)
                 )
+                // Response hardening headers. Spring already sets X-Frame-Options
+                // DENY and X-Content-Type-Options nosniff; we add CSP, a strict
+                // Referrer-Policy, and HSTS (effective only over HTTPS).
+                .headers(headers -> headers
+                        // Strict but Swagger-UI compatible: own-origin resources
+                        // plus the inline script/style Swagger needs; no framing.
+                        .contentSecurityPolicy(csp -> csp.policyDirectives(
+                                "default-src 'self'; "
+                                        + "script-src 'self' 'unsafe-inline'; "
+                                        + "style-src 'self' 'unsafe-inline'; "
+                                        + "img-src 'self' data:; "
+                                        + "frame-ancestors 'none'; "
+                                        + "base-uri 'self'"))
+                        .referrerPolicy(rp -> rp.policy(
+                                org.springframework.security.web.header.writers
+                                        .ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER))
+                        .httpStrictTransportSecurity(hsts -> hsts
+                                .includeSubDomains(true)
+                                .maxAgeInSeconds(31536000))
+                )
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
