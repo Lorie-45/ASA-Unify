@@ -4,6 +4,7 @@ package com.asa.asaunify.services;
 import com.asa.asaunify.dtos.CreateUserRequest;
 import com.asa.asaunify.dtos.UpdateUserRequest;
 import com.asa.asaunify.dtos.UserDto;
+import com.asa.asaunify.dtos.UserSummaryDto;
 import com.asa.asaunify.entity.Department;
 import com.asa.asaunify.entity.User;
 import com.asa.asaunify.enums.ActionType;
@@ -114,6 +115,34 @@ public class UserService {
                 .stream()
                 .map(this::toDTO)
                 .collect(Collectors.toList());
+    }
+
+    // Role lookup for pickers — returns a minimal, non-PII summary so this
+    // any-authenticated-user endpoint cannot enumerate staff email addresses.
+    @Transactional(readOnly = true)
+    public List<UserSummaryDto> getUserSummariesByRole(Role role) {
+        return userRepository.findByRole(role)
+                .stream()
+                .map(this::toSummary)
+                .collect(Collectors.toList());
+    }
+
+    private UserSummaryDto toSummary(User user) {
+        return UserSummaryDto.builder()
+                .id(user.getId())
+                .fullName(user.getFullName())
+                .role(user.getRole())
+                .departmentId(
+                        user.getDepartment() != null
+                                ? user.getDepartment().getId()
+                                : null
+                )
+                .departmentName(
+                        user.getDepartment() != null
+                                ? user.getDepartment().getName()
+                                : null
+                )
+                .build();
     }
 
     @Transactional

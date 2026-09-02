@@ -4,6 +4,7 @@ package com.asa.asaunify.controllers;
 import com.asa.asaunify.dtos.CreateUserRequest;
 import com.asa.asaunify.dtos.UpdateUserRequest;
 import com.asa.asaunify.dtos.UserDto;
+import com.asa.asaunify.dtos.UserSummaryDto;
 import com.asa.asaunify.entity.User;
 import com.asa.asaunify.enums.Role;
 import com.asa.asaunify.services.UserService;
@@ -95,11 +96,13 @@ public class UserController {
     // ─── Get users by role ────────────────────────────────────
 
     // GET /api/users/role/{role}
+    // Returns a minimal, non-PII summary (no email/timestamps) — this is a
+    // picker endpoint callable by any authenticated user.
     @GetMapping("/role/{role}")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<UserDto>> getUsersByRole(
+    public ResponseEntity<List<UserSummaryDto>> getUsersByRole(
             @PathVariable Role role) {
-        return ResponseEntity.ok(userService.getUsersByRole(role));
+        return ResponseEntity.ok(userService.getUserSummariesByRole(role));
     }
 
     // ─── Update user — Admin only ─────────────────────────────

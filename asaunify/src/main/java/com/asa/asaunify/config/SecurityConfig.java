@@ -64,20 +64,30 @@ public class SecurityConfig {
     private final UserDetailsService userDetailsService;
     private final CorsConfigurationSource corsConfigurationSource; // ← add this
 
+    // API docs are public ONLY when explicitly enabled (dev). Defaults to
+    // false so production does not expose the Swagger UI / OpenAPI schema.
+    @org.springframework.beans.factory.annotation.Value(
+            "${springdoc.api-docs.enabled:false}")
+    private boolean apiDocsEnabled;
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource)) // ← add this
                 .csrf(AbstractHttpConfigurer::disable)
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/ws/**",
-                                "/swagger-ui/**",
-                                "/swagger-ui.html",
-                                "/v3/api-docs/**",
-                                "/v3/api-docs").permitAll()
-                        .anyRequest().authenticated()
-                )
+                .authorizeHttpRequests(auth -> {
+                        auth.requestMatchers("/api/auth/**").permitAll();
+                        auth.requestMatchers("/ws/**").permitAll();
+                        // Only expose docs publicly in non-production (flag on).
+                        if (apiDocsEnabled) {
+                                auth.requestMatchers(
+                                        "/swagger-ui/**",
+                                        "/swagger-ui.html",
+                                        "/v3/api-docs/**",
+                                        "/v3/api-docs").permitAll();
+                        }
+                        auth.anyRequest().authenticated();
+                })
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )

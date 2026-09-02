@@ -226,19 +226,13 @@ public class RequestController {
 
 
 
+    // Returns a minimal, non-PII summary (no email/timestamps) — picker
+    // endpoint callable by any authenticated user.
     @GetMapping("/role/{role}")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<UserDto>> getUsersByRole(
+    public ResponseEntity<List<UserSummaryDto>> getUsersByRole(
             @PathVariable Role role) {
-        try {
-            log.info("getUsersByRole called with role: {}", role);
-            List<UserDto> result = userService.getUsersByRole(role);
-            log.info("getUsersByRole returning {} users", result.size());
-            return ResponseEntity.ok(result);
-        } catch (Exception e) {
-            log.error("getUsersByRole failed", e);
-            throw e;
-        }
+        return ResponseEntity.ok(userService.getUserSummariesByRole(role));
     }
 
 
