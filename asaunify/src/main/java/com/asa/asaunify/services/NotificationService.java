@@ -293,8 +293,17 @@ public class NotificationService {
     }
 
     // Mark single notification as read
-    public void markAsRead(UUID notificationId) {
-        notificationRepository.markAsRead(notificationId);
+    public void markAsRead(UUID notificationId, User currentUser) {
+        // Only the owner may mark their own notification read. Same response
+        // as a genuine miss so IDs of other users cannot be probed.
+        Notification notification = notificationRepository
+                .findById(notificationId)
+                .filter(n -> n.getUser() != null
+                        && n.getUser().getId().equals(currentUser.getId()))
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Notification not found: " + notificationId));
+
+        notificationRepository.markAsRead(notification.getId());
     }
 
     // ─── Core send helpers ────────────────────────────────────
