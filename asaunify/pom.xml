@@ -115,10 +115,12 @@
 		</dependency>
 
 		<!-- ─── PDF export ──────────────────────────────────── -->
+		<!-- OpenPDF (LGPL/MPL) replaces the end-of-life iText 5.x, which
+		     carried known CVEs. API-compatible fork (com.lowagie.text). -->
 		<dependency>
-			<groupId>com.itextpdf</groupId>
-			<artifactId>itextpdf</artifactId>
-			<version>5.5.13.3</version>
+			<groupId>com.github.librepdf</groupId>
+			<artifactId>openpdf</artifactId>
+			<version>1.4.2</version>
 		</dependency>
 
 		<!-- ─── Dev Tools ───────────────────────────────────── -->

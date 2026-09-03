@@ -75,8 +75,14 @@ public class NotificationController {
 
     // POST /api/notifications/{id}/read
     @PostMapping("/{id}/read")
-    public ResponseEntity<Void> markAsRead(@PathVariable UUID id) {
-        notificationService.markAsRead(id);
+    public ResponseEntity<Void> markAsRead(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        User currentUser = userService
+                .findUserByEmail(userDetails.getUsername());
+
+        notificationService.markAsRead(id, currentUser);
         return ResponseEntity.ok().build();
     }
 }

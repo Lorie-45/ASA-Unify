@@ -2,18 +2,18 @@ package com.asa.asaunify.services;
 
 
 import com.asa.asaunify.dtos.RequestResponseDto;
-import com.itextpdf.text.BaseColor;
-import com.itextpdf.text.Chunk;
-import com.itextpdf.text.Document;
-import com.itextpdf.text.DocumentException;
-import com.itextpdf.text.Element;
-import com.itextpdf.text.FontFactory;
-import com.itextpdf.text.PageSize;
-import com.itextpdf.text.Paragraph;
-import com.itextpdf.text.Phrase;
-import com.itextpdf.text.pdf.PdfPCell;
-import com.itextpdf.text.pdf.PdfPTable;
-import com.itextpdf.text.pdf.PdfWriter;
+import java.awt.Color;
+import com.lowagie.text.Chunk;
+import com.lowagie.text.Document;
+import com.lowagie.text.DocumentException;
+import com.lowagie.text.Element;
+import com.lowagie.text.FontFactory;
+import com.lowagie.text.PageSize;
+import com.lowagie.text.Paragraph;
+import com.lowagie.text.Phrase;
+import com.lowagie.text.pdf.PdfPCell;
+import com.lowagie.text.pdf.PdfPTable;
+import com.lowagie.text.pdf.PdfWriter;
 import com.opencsv.CSVWriter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -162,8 +162,8 @@ public class ExportService {
         document.open();
 
         // Title — fully qualified iText Font
-        com.itextpdf.text.Font titleFont = FontFactory.getFont(
-                FontFactory.HELVETICA_BOLD, 16, BaseColor.DARK_GRAY
+        com.lowagie.text.Font titleFont = FontFactory.getFont(
+                FontFactory.HELVETICA_BOLD, 16, Color.DARK_GRAY
         );
         Paragraph title = new Paragraph(reportTitle, titleFont);
         title.setAlignment(Element.ALIGN_CENTER);
@@ -171,8 +171,8 @@ public class ExportService {
         document.add(title);
 
         // Generated date
-        com.itextpdf.text.Font subFont = FontFactory.getFont(
-                FontFactory.HELVETICA, 10, BaseColor.GRAY
+        com.lowagie.text.Font subFont = FontFactory.getFont(
+                FontFactory.HELVETICA, 10, Color.GRAY
         );
         document.add(new Paragraph(
                 "Generated: " + java.time.LocalDateTime.now(), subFont
@@ -190,28 +190,28 @@ public class ExportService {
                 "Status", "Initiator", "Department"
         };
 
-        com.itextpdf.text.Font headerFont = FontFactory.getFont(
-                FontFactory.HELVETICA_BOLD, 10, BaseColor.WHITE
+        com.lowagie.text.Font headerFont = FontFactory.getFont(
+                FontFactory.HELVETICA_BOLD, 10, Color.WHITE
         );
 
         for (String h : headers) {
             PdfPCell cell = new PdfPCell(new Phrase(h, headerFont));
-            cell.setBackgroundColor(new BaseColor(76, 153, 0));
+            cell.setBackgroundColor(new Color(76, 153, 0));
             cell.setPadding(6);
             cell.setHorizontalAlignment(Element.ALIGN_CENTER);
             table.addCell(cell);
         }
 
         // Table data rows
-        com.itextpdf.text.Font cellFont = FontFactory.getFont(
-                FontFactory.HELVETICA, 9, BaseColor.BLACK
+        com.lowagie.text.Font cellFont = FontFactory.getFont(
+                FontFactory.HELVETICA, 9, Color.BLACK
         );
 
         boolean alternate = false;
         for (RequestResponseDto r : requests) {
-            BaseColor rowColor = alternate
-                    ? new BaseColor(240, 240, 240)
-                    : BaseColor.WHITE;
+            Color rowColor = alternate
+                    ? new Color(240, 240, 240)
+                    : Color.WHITE;
 
             String[] values = {
                     r.getCaseId(),
