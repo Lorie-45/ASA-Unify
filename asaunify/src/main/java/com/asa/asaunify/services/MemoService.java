@@ -9,6 +9,7 @@ import com.asa.asaunify.dtos.MemoDto;
 import com.asa.asaunify.entity.Memo;
 import com.asa.asaunify.entity.MemoApprovalStage;
 import com.asa.asaunify.entity.User;
+import com.asa.asaunify.exceptions.ResourceNotFoundException;
 import com.asa.asaunify.enums.ActionType;
 import com.asa.asaunify.enums.RequestStatus;
 import com.asa.asaunify.enums.Role;
@@ -48,7 +49,7 @@ public class MemoService {
 //            HttpServletRequest httpRequest) {
 //
 //        Memo memo = Memo.builder()
-//                .referenceNumber(generateReferenceNumber())
+//                .caseId(generateCaseId())
 //                .title(dto.getTitle())
 //                .content(dto.getContent())
 //                .author(author)
@@ -87,7 +88,7 @@ public class MemoService {
 //    public MemoDto createMemo(CreateMemoRequest dto, User author) {
 //
 //        Memo memo = Memo.builder()
-//                .referenceNumber(generateReferenceNumber())
+//                .caseId(generateCaseId())
 //                .title(dto.getTitle())
 //                .content(dto.getContent())
 //                .author(author)
@@ -128,7 +129,7 @@ public class MemoService {
             HttpServletRequest httpRequest) {  // ← add this parameter
 
         Memo memo = Memo.builder()
-                .referenceNumber(generateReferenceNumber())
+                .caseId(generateCaseId())
                 .title(dto.getTitle())
                 .content(dto.getContent())
                 .author(author)
@@ -140,9 +141,7 @@ public class MemoService {
         List<MemoApprovalStage> stages = dto.getApproverIds().stream()
                 .map(approverId -> {
                     User approver = userRepository.findById(approverId)
-                            .orElseThrow(() -> new IllegalArgumentException(
-                                    "Approver not found: " + approverId
-                            ));
+                            .orElseThrow(() -> new ResourceNotFoundException("Approver not found"));
                     return MemoApprovalStage.builder()
                             .memo(saved)
                             .assignedRole(approver.getRole())
@@ -324,7 +323,7 @@ public class MemoService {
         Memo memo = findMemoById(id);
         if (!canView(memo, currentUser)) {
             // Same response as a genuine miss — no existence disclosure.
-            throw new IllegalArgumentException("Memo not found: " + id);
+            throw new ResourceNotFoundException("Memo not found");
         }
         return toDTO(memo);
     }
@@ -354,11 +353,11 @@ public class MemoService {
     private Memo findMemoById(UUID id) {
         return memoRepository.findById(id)
                 .orElseThrow(() ->
-                        new IllegalArgumentException("Memo not found: " + id));
+                        new ResourceNotFoundException("Memo not found"));
     }
 
-    private String generateReferenceNumber() {
-        return memoRepository.findLatestReferenceNumber()
+    private String generateCaseId() {
+        return memoRepository.findLatestCaseId()
                 .map(last -> {
                     int number = Integer.parseInt(
                             last.replace("MEMO-", "")
@@ -373,7 +372,7 @@ public class MemoService {
     public MemoDto toDTO(Memo memo) {
         return MemoDto.builder()
                 .id(memo.getId())
-                .referenceNumber(memo.getReferenceNumber())
+                .caseId(memo.getCaseId())
                 .title(memo.getTitle())
                 .content(memo.getContent())
                 .authorId(memo.getAuthor().getId())

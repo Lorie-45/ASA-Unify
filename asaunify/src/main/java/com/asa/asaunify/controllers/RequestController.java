@@ -92,7 +92,7 @@ public class RequestController {
     @PatchMapping("/{id}")
     public ResponseEntity<RequestResponseDto> updateDraft(
             @PathVariable UUID id,
-            @RequestBody UpdateRequestDto dto,
+            @Valid @RequestBody UpdateRequestDto dto,
             @AuthenticationPrincipal UserDetails userDetails,
             HttpServletRequest httpRequest) {
 
@@ -110,7 +110,7 @@ public class RequestController {
             "'RM', 'MSME_OFFICER')")
     public ResponseEntity<RequestResponseDto> cancelRequest(
             @PathVariable UUID id,
-            @RequestBody CancelRequestBody body,
+            @Valid @RequestBody CancelRequestBody body,
             @AuthenticationPrincipal UserDetails userDetails,
             HttpServletRequest httpRequest) {
 

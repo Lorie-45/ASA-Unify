@@ -3,6 +3,7 @@ package com.asa.asaunify.services;
 
 
 
+import com.asa.asaunify.exceptions.ResourceNotFoundException;
 import com.asa.asaunify.entity.ApprovalStage;
 import com.asa.asaunify.entity.User;
 import com.asa.asaunify.repos.ApprovalStageRepo;
@@ -52,7 +53,7 @@ public class UserReportService {
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() ->
-                        new IllegalArgumentException("User not found: " + userId));
+                        new ResourceNotFoundException("User not found"));
 
         return buildActivityDTO(user, from, to);
     }
@@ -67,7 +68,7 @@ public class UserReportService {
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() ->
-                        new IllegalArgumentException("User not found"));
+                        new ResourceNotFoundException("User not found"));
 
         return approvalStageRepository
                 .findByActedBy(user)

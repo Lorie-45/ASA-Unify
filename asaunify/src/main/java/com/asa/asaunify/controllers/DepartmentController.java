@@ -2,6 +2,7 @@ package com.asa.asaunify.controllers;
 
 
 
+import jakarta.validation.Valid;
 import com.asa.asaunify.entity.Department;
 import com.asa.asaunify.repos.DepartmentRepo;
 import com.asa.asaunify.services.DepartmentService;
@@ -32,7 +33,7 @@ public class DepartmentController {
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Department> createDepartment(
-            @RequestBody CreateDepartmentRequest request) {
+            @Valid @RequestBody CreateDepartmentRequest request) {
 
 
         return ResponseEntity
@@ -72,7 +73,7 @@ public class DepartmentController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Department> updateDepartment(
             @PathVariable UUID id,
-            @RequestBody UpdateDepartmentRequest request) {
+            @Valid @RequestBody UpdateDepartmentRequest request) {
 
         return ResponseEntity.ok(
                 departmentService.updateDepartment(

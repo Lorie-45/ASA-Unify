@@ -214,7 +214,7 @@ function MemoCard({
         </button>
       </div>
 
-      <p className="text-xs text-gray-400 mb-1">{memo.referenceNumber}</p>
+      <p className="text-xs text-gray-400 mb-1">{memo.caseId}</p>
       <p className="font-semibold text-gray-900 mb-1">{memo.title}</p>
       <p className="text-xs text-gray-500 mb-3">By {memo.authorName}</p>
 

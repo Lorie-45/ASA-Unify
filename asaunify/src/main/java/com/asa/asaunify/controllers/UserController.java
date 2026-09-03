@@ -112,7 +112,7 @@ public class UserController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<UserDto> updateUser(
             @PathVariable UUID id,
-            @RequestBody UpdateUserRequest request,
+            @Valid @RequestBody UpdateUserRequest request,
             @AuthenticationPrincipal UserDetails userDetails,
             HttpServletRequest httpRequest) {
 

@@ -71,7 +71,7 @@
 //   const filtered = requests.filter(
 //     (r) =>
 //       r.title.toLowerCase().includes(search.toLowerCase()) ||
-//       r.referenceNumber.toLowerCase().includes(search.toLowerCase()) ||
+//       r.caseId.toLowerCase().includes(search.toLowerCase()) ||
 //       r.initiatorName.toLowerCase().includes(search.toLowerCase()),
 //   );
 
@@ -178,7 +178,7 @@
 //           <p className="font-medium text-gray-900">
 //             {amount
 //               ? `${amount.toLocaleString()} Rwf`
-//               : request.referenceNumber}
+//               : request.caseId}
 //           </p>
 //         </div>
 //         <div>
@@ -329,14 +329,14 @@ export default function Approvals() {
   const filteredRequests = requests.filter(
     (r) =>
       r.title.toLowerCase().includes(search.toLowerCase()) ||
-      r.referenceNumber.toLowerCase().includes(search.toLowerCase()) ||
+      r.caseId.toLowerCase().includes(search.toLowerCase()) ||
       r.initiatorName.toLowerCase().includes(search.toLowerCase())
   );
 
   const filteredMemos = memos.filter(
     (m) =>
       m.title.toLowerCase().includes(search.toLowerCase()) ||
-      m.referenceNumber.toLowerCase().includes(search.toLowerCase()) ||
+      m.caseId.toLowerCase().includes(search.toLowerCase()) ||
       m.authorName.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -484,7 +484,7 @@ function RequestApprovalCard({
           <p className="font-medium text-gray-900">
             {amount
               ? `${amount.toLocaleString()} Rwf`
-              : request.referenceNumber}
+              : request.caseId}
           </p>
         </div>
         <div>
@@ -562,7 +562,7 @@ function MemoApprovalCard({
         </div>
         <div className="col-span-2">
           <p className="text-xs text-gray-400">Reference</p>
-          <p className="font-medium text-gray-900">{memo.referenceNumber}</p>
+          <p className="font-medium text-gray-900">{memo.caseId}</p>
         </div>
       </div>
 

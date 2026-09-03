@@ -24,8 +24,8 @@ public class Memo {
     private UUID id;
 
     // Human-readable reference e.g. MEMO-001
-    @Column(name = "reference_number", nullable = false, unique = true)
-    private String referenceNumber;
+    @Column(name = "case_id", nullable = false, unique = true)
+    private String caseId;
 
     @Column(nullable = false)
     private String title;

@@ -12,6 +12,8 @@ import com.asa.asaunify.logging.AuditService;
 import com.asa.asaunify.repos.DepartmentRepo;
 import com.asa.asaunify.repos.UserRepo;
 import com.asa.asaunify.enums.Role;
+import com.asa.asaunify.exceptions.DuplicateResourceException;
+import com.asa.asaunify.exceptions.ResourceNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,9 +43,7 @@ public class UserService {
 
         // Check email uniqueness
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new IllegalArgumentException(
-                    "Email already in use: " + request.getEmail()
-            );
+            throw new DuplicateResourceException("Email already in use");
         }
 
         // Resolve department
@@ -51,9 +51,7 @@ public class UserService {
         if (request.getDepartmentId() != null) {
             department = departmentRepository
                     .findById(request.getDepartmentId())
-                    .orElseThrow(() -> new IllegalArgumentException(
-                            "Department not found"
-                    ));
+                    .orElseThrow(() -> new ResourceNotFoundException("Department not found"));
         }
 
         // Enforce department requirement based on role
@@ -101,7 +99,7 @@ public class UserService {
         Department department = departmentRepository
                 .findById(departmentId)
                 .orElseThrow(() ->
-                        new IllegalArgumentException("Department not found"));
+                        new ResourceNotFoundException("Department not found"));
 
         return userRepository.findByDepartment(department)
                 .stream()
@@ -160,9 +158,7 @@ public class UserService {
         if (request.getEmail() != null) {
             if (userRepository.existsByEmail(request.getEmail()) &&
                     !user.getEmail().equals(request.getEmail())) {
-                throw new IllegalArgumentException(
-                        "Email already in use: " + request.getEmail()
-                );
+                throw new DuplicateResourceException("Email already in use");
             }
             user.setEmail(request.getEmail());
         }
@@ -173,7 +169,7 @@ public class UserService {
             Department department = departmentRepository
                     .findById(request.getDepartmentId())
                     .orElseThrow(() ->
-                            new IllegalArgumentException("Department not found"));
+                            new ResourceNotFoundException("Department not found"));
             user.setDepartment(department);
         }
         if (request.getIsActive() != null) {
@@ -219,13 +215,13 @@ public class UserService {
     public User findUserById(UUID id) {
         return userRepository.findById(id)
                 .orElseThrow(() ->
-                        new IllegalArgumentException("User not found: " + id));
+                        new ResourceNotFoundException("User not found"));
     }
 
     public User findUserByEmail(String email) {
         return userRepository.findByEmail(email)
                 .orElseThrow(() ->
-                        new IllegalArgumentException("User not found: " + email));
+                        new ResourceNotFoundException("User not found"));
     }
 
     private void validateDepartmentForRole(Role role, Department department) {

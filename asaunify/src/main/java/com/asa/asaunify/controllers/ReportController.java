@@ -14,7 +14,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -328,7 +327,8 @@ public class ReportController {
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
             LocalDateTime to,
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @AuthenticationPrincipal UserDetails userDetails)
+            throws java.io.IOException, com.lowagie.text.DocumentException {
 
         User currentUser = userService
                 .findUserByEmail(userDetails.getUsername());
@@ -337,50 +337,45 @@ public class ReportController {
         List<RequestResponseDto> data = caseReportService
                 .getAllCases(status, type, from, to);
 
-        try {
-            byte[] bytes;
-            MediaType mediaType;
-            String filename;
+        byte[] bytes;
+        MediaType mediaType;
+        String filename;
 
-            switch (format.toLowerCase()) {
-                case "csv" -> {
-                    bytes = exportService.exportRequestsToCsv(data);
-                    mediaType = MediaType.parseMediaType("text/csv");
-                    filename = "requests.csv";
-                }
-                case "pdf" -> {
-                    bytes = exportService.exportRequestsToPdf(
-                            data, "ASAUnify — Requests Report"
-                    );
-                    mediaType = MediaType.APPLICATION_PDF;
-                    filename = "requests.pdf";
-                }
-                default -> {
-                    bytes = exportService.exportRequestsToExcel(data);
-                    mediaType = MediaType.parseMediaType(
-                            "application/vnd.openxmlformats-" +
-                                    "officedocument.spreadsheetml.sheet"
-                    );
-                    filename = "requests.xlsx";
-                }
+        switch (format.toLowerCase()) {
+            case "csv" -> {
+                bytes = exportService.exportRequestsToCsv(data);
+                mediaType = MediaType.parseMediaType("text/csv");
+                filename = "requests.csv";
             }
-
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentDisposition(
-                    ContentDisposition.attachment()
-                            .filename(filename)
-                            .build()
-            );
-
-            return ResponseEntity.ok()
-                    .headers(headers)
-                    .contentType(mediaType)
-                    .body(bytes);
-
-        } catch (Exception e) {
-            return ResponseEntity
-                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .build();
+            case "pdf" -> {
+                bytes = exportService.exportRequestsToPdf(
+                        data, "ASAUnify — Requests Report"
+                );
+                mediaType = MediaType.APPLICATION_PDF;
+                filename = "requests.pdf";
+            }
+            default -> {
+                bytes = exportService.exportRequestsToExcel(data);
+                mediaType = MediaType.parseMediaType(
+                        "application/vnd.openxmlformats-" +
+                                "officedocument.spreadsheetml.sheet"
+                );
+                filename = "requests.xlsx";
+            }
         }
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentDisposition(
+                ContentDisposition.attachment()
+                        .filename(filename)
+                        .build()
+        );
+
+        // Any export failure now propagates to GlobalExceptionHandler, which
+        // logs it server-side and returns a consistent error body.
+        return ResponseEntity.ok()
+                .headers(headers)
+                .contentType(mediaType)
+                .body(bytes);
     }
 }

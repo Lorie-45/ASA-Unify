@@ -6,6 +6,7 @@ import com.asa.asaunify.entity.*;
 import com.asa.asaunify.enums.ActionType;
 import com.asa.asaunify.enums.Role;
 import com.asa.asaunify.enums.StageStatus;
+import com.asa.asaunify.exceptions.ResourceNotFoundException;
 import com.asa.asaunify.repos.ApprovalStageRepo;
 import com.asa.asaunify.repos.NotificationRepo;
 import com.asa.asaunify.repos.UserRepo;
@@ -164,7 +165,7 @@ public class NotificationService {
         String title = "Memo Requires Your Approval";
         String body = String.format(
                 "Memo %s — %s has been submitted and requires your review.",
-                memo.getReferenceNumber(),
+                memo.getCaseId(),
                 memo.getTitle()
         );
 
@@ -188,7 +189,7 @@ public class NotificationService {
         String title = String.format("Memo %s", actionWord);
         String body = String.format(
                 "Memo %s — %s was %s by %s.",
-                memo.getReferenceNumber(),
+                memo.getCaseId(),
                 memo.getTitle(),
                 actionWord,
                 stage.getActedBy() != null
@@ -228,7 +229,7 @@ public class NotificationService {
         String title = String.format("Memo %s", isApproved);
         String body = String.format(
                 "Your memo %s — %s has been %s.",
-                memo.getReferenceNumber(),
+                memo.getCaseId(),
                 memo.getTitle(),
                 isApproved
         );
@@ -300,8 +301,7 @@ public class NotificationService {
                 .findById(notificationId)
                 .filter(n -> n.getUser() != null
                         && n.getUser().getId().equals(currentUser.getId()))
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "Notification not found: " + notificationId));
+                .orElseThrow(() -> new ResourceNotFoundException("Notification not found"));
 
         notificationRepository.markAsRead(notification.getId());
     }
@@ -388,7 +388,7 @@ public class NotificationService {
                 )
                 .memoReferenceNumber(
                         notification.getMemo() != null
-                                ? notification.getMemo().getReferenceNumber()
+                                ? notification.getMemo().getCaseId()
                                 : null
                 )
                 .build();

@@ -1,5 +1,7 @@
 package com.asa.asaunify.config;
 
+import com.asa.asaunify.exceptions.DuplicateResourceException;
+import com.asa.asaunify.exceptions.ResourceNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -37,6 +39,18 @@ public class GlobalExceptionHandler {
                 ? ex.getBindingResult().getFieldError().getDefaultMessage()
                 : "Validation failed";
         return body(HttpStatus.BAD_REQUEST, msg);
+    }
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleNotFound(
+            ResourceNotFoundException ex) {
+        return body(HttpStatus.NOT_FOUND, ex.getMessage());
+    }
+
+    @ExceptionHandler(DuplicateResourceException.class)
+    public ResponseEntity<Map<String, Object>> handleDuplicate(
+            DuplicateResourceException ex) {
+        return body(HttpStatus.CONFLICT, ex.getMessage());
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

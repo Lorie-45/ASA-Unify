@@ -18,7 +18,7 @@ export interface MemoApprovalStageDto {
 
 export interface MemoDto {
   id: string;
-  referenceNumber: string;
+  caseId: string;
   title: string;
   content: string;
   authorId: string;

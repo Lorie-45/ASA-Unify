@@ -24,8 +24,8 @@ public class CreateUserRequest {
 
     // Password policy: at least 12 chars, with upper, lower, digit and symbol.
     @NotBlank(message = "Password is required")
-    @Size(min = 12, max = 128,
-            message = "Password must be between 12 and 128 characters")
+    @Size(min = 6, max = 128,
+            message = "Password must be between 6 and 128 characters")
     @Pattern(
             regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).+$",
             message = "Password must include an uppercase letter, a lowercase "

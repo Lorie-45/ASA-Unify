@@ -2,6 +2,7 @@ package com.asa.asaunify.services;
 
 
 
+import com.asa.asaunify.exceptions.ResourceNotFoundException;
 import com.asa.asaunify.entity.AuditLog;
 import com.asa.asaunify.entity.LoginHistory;
 import com.asa.asaunify.entity.User;
@@ -53,7 +54,7 @@ public class AuditReportService {
             // Filter by specific user
             User user = userRepository.findById(userId)
                     .orElseThrow(() ->
-                            new IllegalArgumentException("User not found"));
+                            new ResourceNotFoundException("User not found"));
             logs = auditLogRepository
                     .findByUserAndTimestampBetweenOrderByTimestampDesc(
                             user, effectiveFrom, effectiveTo
@@ -126,7 +127,7 @@ public class AuditReportService {
         if (userId != null) {
             User user = userRepository.findById(userId)
                     .orElseThrow(() ->
-                            new IllegalArgumentException("User not found"));
+                            new ResourceNotFoundException("User not found"));
             history = loginHistoryRepository
                     .findByUserAndLoginAtBetweenOrderByLoginAtDesc(
                             user, effectiveFrom, effectiveTo

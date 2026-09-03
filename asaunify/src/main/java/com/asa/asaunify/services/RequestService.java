@@ -9,6 +9,7 @@ import com.asa.asaunify.enums.RequestStatus;
 import com.asa.asaunify.enums.RequestType;
 import com.asa.asaunify.enums.Role;
 import com.asa.asaunify.enums.StageStatus;
+import com.asa.asaunify.exceptions.ResourceNotFoundException;
 import com.asa.asaunify.logging.AuditService;
 import com.asa.asaunify.repos.*;
 import com.asa.asaunify.workflow.WorkflowEngine;
@@ -74,9 +75,7 @@ public class RequestService {
         if (dto.getParentRequestId() != null) {
             Request parent = requestRepository
                     .findById(dto.getParentRequestId())
-                    .orElseThrow(() -> new IllegalArgumentException(
-                            "Parent request not found"
-                    ));
+                    .orElseThrow(() -> new ResourceNotFoundException("Parent request not found"));
             validateTopUp(parent, dto);
             request.setParentRequest(parent);
         }
@@ -146,10 +145,6 @@ public class RequestService {
             HttpServletRequest httpRequest) {
 
         Request request = findRequestById(requestId);
-
-        log.info("=== processAction ===");
-        log.info("User: {} Role: {}", currentUser.getEmail(), currentUser.getRole());
-        log.info("Request ID: {}", request.getId());
 
         // Validate comment is provided on rejection
         if (dto.getAction() == StageStatus.REJECTED &&
@@ -297,7 +292,7 @@ public class RequestService {
             HttpServletRequest httpRequest) {
 
         Request request = requestRepository.findById(requestId)
-                .orElseThrow(() -> new IllegalArgumentException("Request not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Request not found"));
 
         // Only Fleet Manager can assign drivers
         if (currentUser.getRole() != Role.FLEET_MANAGER) {
@@ -318,7 +313,7 @@ public class RequestService {
         }
 
         User driver = userRepository.findById(dto.getDriverId())
-                .orElseThrow(() -> new IllegalArgumentException("Driver not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Driver not found"));
 
         if (driver.getRole() != Role.DRIVER) {
             throw new IllegalArgumentException("Selected user is not a driver");
@@ -480,39 +475,25 @@ public class RequestService {
 
     @Transactional(readOnly = true)
     public List<RequestResponseDto> getPendingForRole(User user) {
-        try {
-            log.info("=== getPendingForRole START ===");
-            log.info("User: {} Role: {}", user.getEmail(), user.getRole());
+        List<ApprovalStage> stages = approvalStageRepository
+                .findByAssignedRoleAndStatus(user.getRole(), StageStatus.PENDING);
 
-            List<ApprovalStage> stages = approvalStageRepository
-                    .findByAssignedRoleAndStatus(user.getRole(), StageStatus.PENDING);
-
-            log.info("Found {} stages", stages.size());
-
-            List<RequestResponseDto> result = stages.stream()
-                    .map(ApprovalStage::getRequest)
-                    .distinct() // avoid duplicates from multiple stages
-                    .filter(r ->
-                            // Sequential stages — only show if request is still PENDING
-                            // Parallel stages — show even if request was prematurely
-                            // marked REJECTED, as long as it's not COMPLETED
-                            r.getStatus() == RequestStatus.PENDING ||
-                                    (r.getStatus() == RequestStatus.REJECTED &&
-                                            stages.stream()
-                                                    .anyMatch(s -> s.getRequest().getId().equals(r.getId())
-                                                            && s.isParallel()))
-                    )
-                    .filter(r -> r.getStatus() != RequestStatus.COMPLETED)
-                    .map(this::toDTO)
-                    .collect(Collectors.toList());
-
-            log.info("Returning {} results", result.size());
-            return result;
-
-        } catch (Exception e) {
-            log.error("=== getPendingForRole FAILED ===", e);
-            return List.of();
-        }
+        // Sequential stages — only show if the request is still PENDING.
+        // Parallel stages — show even if prematurely marked REJECTED, as long
+        // as it is not COMPLETED.
+        return stages.stream()
+                .map(ApprovalStage::getRequest)
+                .distinct()
+                .filter(r ->
+                        r.getStatus() == RequestStatus.PENDING ||
+                                (r.getStatus() == RequestStatus.REJECTED &&
+                                        stages.stream()
+                                                .anyMatch(s -> s.getRequest().getId().equals(r.getId())
+                                                        && s.isParallel()))
+                )
+                .filter(r -> r.getStatus() != RequestStatus.COMPLETED)
+                .map(this::toDTO)
+                .collect(Collectors.toList());
     }
 
 
@@ -532,7 +513,7 @@ public class RequestService {
         if (!canView(request, currentUser)) {
             // Same response as a genuine miss so callers cannot probe
             // which request IDs exist (no existence disclosure).
-            throw new IllegalArgumentException("Request not found: " + id);
+            throw new ResourceNotFoundException("Request not found");
         }
         return toDTO(request);
     }
@@ -569,7 +550,7 @@ public class RequestService {
             HttpServletRequest httpRequest) {
 
         Request request = requestRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Request not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Request not found"));
 
         // Only the initiator can edit their own draft
         if (!request.getInitiator().getId().equals(currentUser.getId())) {
@@ -605,7 +586,7 @@ public class RequestService {
     private Request findRequestById(UUID id) {
         return requestRepository.findById(id)
                 .orElseThrow(() ->
-                        new IllegalArgumentException("Request not found: " + id));
+                        new ResourceNotFoundException("Request not found"));
     }
 
 //    private ApprovalStage findActiveStageForUser(
@@ -642,20 +623,8 @@ public class RequestService {
                                 "No active stage found for this request"
                         ));
 
-        log.info("Current stage index: {}", currentIndex);
-        log.info("Looking for role: {}", user.getRole());
-
-        // List all stages at this index for debugging
         List<ApprovalStage> stages = approvalStageRepository
                 .findByRequestAndStageIndex(request, currentIndex);
-
-        stages.forEach(s -> log.info(
-                "Stage: assignedRole={} status={} roleMatch={} statusMatch={}",
-                s.getAssignedRole(),
-                s.getStatus(),
-                s.getAssignedRole().equals(user.getRole()),  // use equals not ==
-                s.getStatus() == StageStatus.PENDING
-        ));
 
         return stages.stream()
                 .filter(s -> s.getAssignedRole().equals(user.getRole())  // ← .equals() not ==

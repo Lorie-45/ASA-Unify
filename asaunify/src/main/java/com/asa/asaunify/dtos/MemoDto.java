@@ -20,7 +20,7 @@ import java.util.UUID;
 public class MemoDto {
 
     private UUID id;
-    private String referenceNumber;
+    private String caseId;
     private String title;
     private String content;
 

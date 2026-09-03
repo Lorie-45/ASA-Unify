@@ -18,7 +18,7 @@ import java.util.UUID;
 @Repository
 public interface MemoRepo extends JpaRepository<Memo, UUID> {
 
-    Optional<Memo> findByReferenceNumber(String referenceNumber);
+    Optional<Memo> findByCaseId(String caseId);
 
     // All memos written by a specific author
     List<Memo> findByAuthorOrderByCreatedAtDesc(User author);
@@ -36,8 +36,8 @@ public interface MemoRepo extends JpaRepository<Memo, UUID> {
     );
 
     // Latest reference number for auto-increment generation
-    @Query("SELECT m.referenceNumber FROM Memo m ORDER BY m.createdAt DESC LIMIT 1")
-    Optional<String> findLatestReferenceNumber();
+    @Query("SELECT m.caseId FROM Memo m ORDER BY m.createdAt DESC LIMIT 1")
+    Optional<String> findLatestCaseId();
 
     // Count memos by status — used in dashboard
     long countByStatus(RequestStatus status);

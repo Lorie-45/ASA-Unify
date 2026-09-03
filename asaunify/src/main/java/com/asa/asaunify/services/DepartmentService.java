@@ -3,6 +3,8 @@ package com.asa.asaunify.services;
 
 
 import com.asa.asaunify.repos.DepartmentRepo;
+import com.asa.asaunify.exceptions.DuplicateResourceException;
+import com.asa.asaunify.exceptions.ResourceNotFoundException;
 import com.asa.asaunify.repos.UserRepo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,9 +28,7 @@ public class DepartmentService {
     @Transactional
     public Department createDepartment(String name, UUID headUserId) {
         if (departmentRepository.existsByName(name)) {
-            throw new IllegalArgumentException(
-                    "Department already exists: " + name
-            );
+            throw new DuplicateResourceException("Department already exists");
         }
 
         Department department = Department.builder()
@@ -40,7 +40,7 @@ public class DepartmentService {
 //        if (headUserId != null) {
 //            User head = userRepository.findById(headUserId)
 //                    .orElseThrow(() ->
-//                            new IllegalArgumentException("Head user not found"));
+//                            new ResourceNotFoundException("Head user not found"));
 //
 //            if (!head.hasRole(com.asa.asaunify.enums.Role.DEPARTMENT_HEAD)) {
 //                throw new IllegalArgumentException(
@@ -53,7 +53,7 @@ public class DepartmentService {
             userRepository.findById(headUserId)
                     .ifPresentOrElse(
                             user -> department.setHeadUserId(headUserId),
-                            () -> { throw new IllegalArgumentException("Head user not found"); }
+                            () -> { throw new ResourceNotFoundException("Head user not found"); }
                     );
         }
 
@@ -68,7 +68,7 @@ public class DepartmentService {
     public Department getDepartmentById(UUID id) {
         return departmentRepository.findById(id)
                 .orElseThrow(() ->
-                        new IllegalArgumentException("Department not found: " + id));
+                        new ResourceNotFoundException("Department not found"));
     }
 
     @Transactional(readOnly = true)
@@ -88,7 +88,7 @@ public class DepartmentService {
 
         return userRepository.findById(department.getHeadUserId())
                 .orElseThrow(() ->
-                        new IllegalArgumentException("Department head user not found"));
+                        new ResourceNotFoundException("Department head user not found"));
     }
 
     // ─── Update ───────────────────────────────────────────────
@@ -104,9 +104,7 @@ public class DepartmentService {
         if (name != null) {
             if (departmentRepository.existsByName(name) &&
                     !department.getName().equals(name)) {
-                throw new IllegalArgumentException(
-                        "Department name already in use: " + name
-                );
+                throw new DuplicateResourceException("Department name already in use");
             }
             department.setName(name);
         }
@@ -114,7 +112,7 @@ public class DepartmentService {
         if (headUserId != null) {
             User head = userRepository.findById(headUserId)
                     .orElseThrow(() ->
-                            new IllegalArgumentException("Head user not found"));
+                            new ResourceNotFoundException("Head user not found"));
 
             if (!head.hasRole(com.asa.asaunify.enums.Role.DEPARTMENT_HEAD)) {
                 throw new IllegalArgumentException(

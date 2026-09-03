@@ -87,10 +87,8 @@ export default function RequestDetail() {
 
   async function loadDrivers() {
     try {
-      console.log("Loading drivers...");
       const data = await usersApi.getUsersByRole(Role.DRIVER);
       setDrivers(data);
-      console.log("Drivers loaded:", data);
     } catch (error) {
       console.error("Failed to load drivers:", error);
     }

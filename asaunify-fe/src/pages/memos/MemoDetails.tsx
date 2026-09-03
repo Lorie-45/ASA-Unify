@@ -93,7 +93,7 @@ export default function MemoDetail() {
             to="/memos"
             className="text-xs text-gray-400 hover:text-gray-600"
           >
-            Memos &raquo; {memo.referenceNumber}
+            Memos &raquo; {memo.caseId}
           </Link>
           <h1 className="text-2xl font-bold text-teal">{memo.title}</h1>
         </div>

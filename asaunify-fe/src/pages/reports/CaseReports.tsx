@@ -71,11 +71,11 @@ export default function CaseReports() {
   const filtered = requests.filter(
     (r) =>
       r.title.toLowerCase().includes(search.toLowerCase()) ||
-      r.referenceNumber.toLowerCase().includes(search.toLowerCase())
+      r.caseId.toLowerCase().includes(search.toLowerCase())
   );
 
   const columns: Column<RequestResponseDto>[] = [
-    { header: 'Reference', accessor: (r) => r.referenceNumber },
+    { header: 'Reference', accessor: (r) => r.caseId },
     { header: 'Type', accessor: (r) => formatType(r.type) },
     { header: 'Title', accessor: (r) => r.title },
     { header: 'Department', accessor: (r) => r.departmentName },
