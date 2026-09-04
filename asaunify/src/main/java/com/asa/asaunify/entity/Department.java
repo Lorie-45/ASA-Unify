@@ -21,7 +21,4 @@ public class Department {
     @Column(nullable = false, unique = true)
     private String name;
 
-    @Column(name = "head_user_id")
-    private UUID headUserId;
-
 }

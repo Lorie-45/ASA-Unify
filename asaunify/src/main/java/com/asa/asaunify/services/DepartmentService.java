@@ -1,20 +1,23 @@
 package com.asa.asaunify.services;
 
 
-
-import com.asa.asaunify.repos.DepartmentRepo;
+import com.asa.asaunify.dtos.DepartmentDto;
+import com.asa.asaunify.entity.Department;
+import com.asa.asaunify.entity.User;
+import com.asa.asaunify.enums.Role;
 import com.asa.asaunify.exceptions.DuplicateResourceException;
 import com.asa.asaunify.exceptions.ResourceNotFoundException;
+import com.asa.asaunify.repos.DepartmentRepo;
 import com.asa.asaunify.repos.UserRepo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import com.asa.asaunify.entity.Department;
-import com.asa.asaunify.entity.User;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -24,42 +27,22 @@ public class DepartmentService {
     private final DepartmentRepo departmentRepository;
     private final UserRepo userRepository;
 
+    // ─── Create ───────────────────────────────────────────────
+    // A department is created with just a name. Its head is whoever is made a
+    // DEPARTMENT_HEAD in this department via user management — there is no
+    // separate head field to keep in sync.
 
     @Transactional
-    public Department createDepartment(String name, UUID headUserId) {
+    public DepartmentDto createDepartment(String name) {
         if (departmentRepository.existsByName(name)) {
             throw new DuplicateResourceException("Department already exists");
         }
 
         Department department = Department.builder()
                 .name(name)
-//                .headUserId(headUserId)
                 .build();
 
-        // Validate head user exists and has DEPARTMENT_HEAD role
-//        if (headUserId != null) {
-//            User head = userRepository.findById(headUserId)
-//                    .orElseThrow(() ->
-//                            new ResourceNotFoundException("Head user not found"));
-//
-//            if (!head.hasRole(com.asa.asaunify.enums.Role.DEPARTMENT_HEAD)) {
-//                throw new IllegalArgumentException(
-//                        "Assigned head user does not have DEPARTMENT_HEAD role"
-//                );
-//            }
-//        }
-
-        if (headUserId != null) {
-            userRepository.findById(headUserId)
-                    .ifPresentOrElse(
-                            user -> department.setHeadUserId(headUserId),
-                            () -> { throw new ResourceNotFoundException("Head user not found"); }
-                    );
-        }
-
-
-
-        return departmentRepository.save(department);
+        return toDto(departmentRepository.save(department));
     }
 
     // ─── Read ─────────────────────────────────────────────────
@@ -72,33 +55,33 @@ public class DepartmentService {
     }
 
     @Transactional(readOnly = true)
-    public List<Department> getAllDepartments() {
-        return departmentRepository.findAll();
+    public DepartmentDto getDepartmentDtoById(UUID id) {
+        return toDto(getDepartmentById(id));
     }
 
-    // Get the department head user
+    @Transactional(readOnly = true)
+    public List<DepartmentDto> getAllDepartments() {
+        return departmentRepository.findAll()
+                .stream()
+                .map(this::toDto)
+                .collect(Collectors.toList());
+    }
+
+    // The department head, derived from user role + department.
+    @Transactional(readOnly = true)
     public User getDepartmentHead(UUID departmentId) {
         Department department = getDepartmentById(departmentId);
-
-        if (department.getHeadUserId() == null) {
-            throw new IllegalArgumentException(
-                    "Department has no assigned head"
-            );
-        }
-
-        return userRepository.findById(department.getHeadUserId())
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("Department head user not found"));
+        return findActiveHead(department)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Department has no assigned head"));
     }
 
     // ─── Update ───────────────────────────────────────────────
+    // Only the name is editable here. The head is managed through the user's
+    // role and department.
 
     @Transactional
-    public Department updateDepartment(
-            UUID id,
-            String name,
-            UUID headUserId) {
-
+    public DepartmentDto updateDepartment(UUID id, String name) {
         Department department = getDepartmentById(id);
 
         if (name != null) {
@@ -109,20 +92,7 @@ public class DepartmentService {
             department.setName(name);
         }
 
-        if (headUserId != null) {
-            User head = userRepository.findById(headUserId)
-                    .orElseThrow(() ->
-                            new ResourceNotFoundException("Head user not found"));
-
-            if (!head.hasRole(com.asa.asaunify.enums.Role.DEPARTMENT_HEAD)) {
-                throw new IllegalArgumentException(
-                        "Assigned head user does not have DEPARTMENT_HEAD role"
-                );
-            }
-            department.setHeadUserId(headUserId);
-        }
-
-        return departmentRepository.save(department);
+        return toDto(departmentRepository.save(department));
     }
 
     // ─── Delete ───────────────────────────────────────────────
@@ -131,7 +101,6 @@ public class DepartmentService {
     public void deleteDepartment(UUID id) {
         Department department = getDepartmentById(id);
 
-        // Check if any users belong to this department
         List<User> members = userRepository.findByDepartment(department);
         if (!members.isEmpty()) {
             throw new IllegalArgumentException(
@@ -141,5 +110,24 @@ public class DepartmentService {
         }
 
         departmentRepository.delete(department);
+    }
+
+    // ─── Helpers ──────────────────────────────────────────────
+
+    private Optional<User> findActiveHead(Department department) {
+        return userRepository
+                .findByDepartmentAndRoleAndIsActiveTrue(department, Role.DEPARTMENT_HEAD)
+                .stream()
+                .findFirst();
+    }
+
+    private DepartmentDto toDto(Department department) {
+        User head = findActiveHead(department).orElse(null);
+        return DepartmentDto.builder()
+                .id(department.getId())
+                .name(department.getName())
+                .headUserId(head != null ? head.getId() : null)
+                .headName(head != null ? head.getFullName() : null)
+                .build();
     }
 }

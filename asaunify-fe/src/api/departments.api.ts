@@ -2,14 +2,9 @@ import api from './api';
 import type { Department } from '../types/user.types';
 
 export const departmentsApi = {
-  createDepartment: async (
-    name: string,
-    headUserId?: string
-  ): Promise<Department> => {
-    const response = await api.post<Department>('/departments', {
-      name,
-      headUserId,
-    });
+  // Head is not set here — it is derived from the user's role/department.
+  createDepartment: async (name: string): Promise<Department> => {
+    const response = await api.post<Department>('/departments', { name });
     return response.data;
   },
 
@@ -19,21 +14,12 @@ export const departmentsApi = {
   },
 
   getDepartmentById: async (id: string): Promise<Department> => {
-    const response = await api.get<Department>(
-      `/departments/${id}`
-    );
+    const response = await api.get<Department>(`/departments/${id}`);
     return response.data;
   },
 
-  updateDepartment: async (
-    id: string,
-    name?: string,
-    headUserId?: string
-  ): Promise<Department> => {
-    const response = await api.patch<Department>(
-      `/departments/${id}`,
-      { name, headUserId }
-    );
+  updateDepartment: async (id: string, name: string): Promise<Department> => {
+    const response = await api.patch<Department>(`/departments/${id}`, { name });
     return response.data;
   },
 

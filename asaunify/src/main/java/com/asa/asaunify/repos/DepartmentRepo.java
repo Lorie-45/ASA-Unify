@@ -12,5 +12,4 @@ public interface DepartmentRepo extends JpaRepository<Department, UUID> {
 
     Optional<Department> findByName(String name);
     boolean existsByName(String name);
-    Optional<Department> findByHeadUserId(UUID headUserId);
 }

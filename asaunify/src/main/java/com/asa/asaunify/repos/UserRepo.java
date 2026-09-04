@@ -20,6 +20,7 @@ public interface UserRepo extends JpaRepository<User, UUID> {
     List<User> findByRole (Role role);
     List<User> findByDepartmentAndIsActiveTrue(Department department);
     List<User> findByRoleAndIsActiveTrue(Role role);
+    List<User> findByDepartmentAndRoleAndIsActiveTrue(Department department, Role role);
 
     @Query("SELECT u FROM User u WHERE u.department.id = :departmentId AND u.isActive = true")
     List<User> findActiveUsersByDepartmentId(UUID departmentId);

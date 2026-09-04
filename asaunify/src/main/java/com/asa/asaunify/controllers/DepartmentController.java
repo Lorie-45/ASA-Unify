@@ -3,8 +3,7 @@ package com.asa.asaunify.controllers;
 
 
 import jakarta.validation.Valid;
-import com.asa.asaunify.entity.Department;
-import com.asa.asaunify.repos.DepartmentRepo;
+import com.asa.asaunify.dtos.DepartmentDto;
 import com.asa.asaunify.services.DepartmentService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotBlank;
@@ -32,16 +31,12 @@ public class DepartmentController {
     // POST /api/departments
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Department> createDepartment(
+    public ResponseEntity<DepartmentDto> createDepartment(
             @Valid @RequestBody CreateDepartmentRequest request) {
-
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(departmentService.createDepartment(
-                        request.getName(),
-                        request.getHeadUserId()
-                ));
+                .body(departmentService.createDepartment(request.getName()));
     }
 
     // ─── Get all ──────────────────────────────────────────────
@@ -49,38 +44,31 @@ public class DepartmentController {
     // GET /api/departments
     @GetMapping
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<Department>> getAllDepartments() {
-        return ResponseEntity.ok(
-                departmentService.getAllDepartments()
-        );
+    public ResponseEntity<List<DepartmentDto>> getAllDepartments() {
+        return ResponseEntity.ok(departmentService.getAllDepartments());
     }
 
     // ─── Get by id ────────────────────────────────────────────
 
     // GET /api/departments/{id}
     @GetMapping("/{id}")
-    public ResponseEntity<Department> getDepartmentById(
+    public ResponseEntity<DepartmentDto> getDepartmentById(
             @PathVariable UUID id) {
-        return ResponseEntity.ok(
-                departmentService.getDepartmentById(id)
-        );
+        return ResponseEntity.ok(departmentService.getDepartmentDtoById(id));
     }
 
     // ─── Update — Admin only ──────────────────────────────────
+    // Only the name is editable; the head is derived from user role/department.
 
     // PATCH /api/departments/{id}
     @PatchMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Department> updateDepartment(
+    public ResponseEntity<DepartmentDto> updateDepartment(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateDepartmentRequest request) {
 
         return ResponseEntity.ok(
-                departmentService.updateDepartment(
-                        id,
-                        request.getName(),
-                        request.getHeadUserId()
-                )
+                departmentService.updateDepartment(id, request.getName())
         );
     }
 
@@ -103,13 +91,11 @@ public class DepartmentController {
     public static class CreateDepartmentRequest {
         @NotBlank(message = "Department name is required")
         private String name;
-        private UUID headUserId;
     }
 
     @Getter
     @Setter
     public static class UpdateDepartmentRequest {
         private String name;
-        private UUID headUserId;
     }
 }

@@ -30,7 +30,10 @@ export interface UpdateUserRequest {
 export interface Department {
   id: string;
   name: string;
+  // Head is derived server-side from the user whose role is DEPARTMENT_HEAD
+  // in this department. Both fields are read-only.
   headUserId: string | null;
+  headName: string | null;
 }
 
 export interface AuthRequest {

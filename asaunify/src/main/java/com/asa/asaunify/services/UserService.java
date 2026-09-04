@@ -56,6 +56,9 @@ public class UserService {
 
         // Enforce department requirement based on role
         validateDepartmentForRole(request.getRole(), department);
+        // A department may have only one active head — this is now the single
+        // source of truth for "who heads the department".
+        enforceSingleDepartmentHead(request.getRole(), department, null);
 
         User user = User.builder()
                 .fullName(request.getFullName())
@@ -176,6 +179,10 @@ public class UserService {
             user.setActive(request.getIsActive());
         }
 
+        // Re-check the one-active-head-per-department invariant on the final
+        // state (excluding this user, who may already be that head).
+        enforceSingleDepartmentHead(user.getRole(), user.getDepartment(), user.getId());
+
         User saved = userRepository.save(user);
 
         auditService.log(
@@ -222,6 +229,26 @@ public class UserService {
         return userRepository.findByEmail(email)
                 .orElseThrow(() ->
                         new ResourceNotFoundException("User not found"));
+    }
+
+    // Enforce that a department has at most one active DEPARTMENT_HEAD.
+    // excludeUserId lets an update re-save the existing head without tripping.
+    private void enforceSingleDepartmentHead(
+            Role role, Department department, UUID excludeUserId) {
+        if (role != Role.DEPARTMENT_HEAD || department == null) {
+            return;
+        }
+        boolean anotherHeadExists = userRepository
+                .findByDepartmentAndRoleAndIsActiveTrue(department, Role.DEPARTMENT_HEAD)
+                .stream()
+                .anyMatch(u -> excludeUserId == null
+                        || !u.getId().equals(excludeUserId));
+        if (anotherHeadExists) {
+            throw new IllegalArgumentException(
+                    "This department already has an active head. "
+                            + "Change that user's role or department first."
+            );
+        }
     }
 
     private void validateDepartmentForRole(Role role, Department department) {
