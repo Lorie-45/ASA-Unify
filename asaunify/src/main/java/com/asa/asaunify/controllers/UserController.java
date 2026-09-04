@@ -124,12 +124,13 @@ public class UserController {
         );
     }
 
-    // ─── Deactivate user — Admin only ─────────────────────────
+    // ─── Delete user — Admin only ─────────────────────────────
+    // Hard delete. Deactivation is done via PATCH { isActive: false }.
 
     // DELETE /api/users/{id}
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> deactivateUser(
+    public ResponseEntity<Void> deleteUser(
             @PathVariable UUID id,
             @AuthenticationPrincipal UserDetails userDetails,
             HttpServletRequest httpRequest) {
@@ -137,7 +138,7 @@ public class UserController {
         User currentUser = userService
                 .findUserByEmail(userDetails.getUsername());
 
-        userService.deactivateUser(id, currentUser, httpRequest);
+        userService.deleteUser(id, currentUser, httpRequest);
         return ResponseEntity.ok().build();
     }
 }

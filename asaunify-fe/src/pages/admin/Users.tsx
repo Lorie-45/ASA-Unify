@@ -17,6 +17,8 @@ export default function AdminUsers() {
   const [users, setUsers] = useState<UserDto[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<Role | "">("");
+  const [statusFilter, setStatusFilter] = useState<"" | "active" | "inactive">("");
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -41,27 +43,56 @@ export default function AdminUsers() {
     loadData();
   }, [loadData]);
 
-  async function handleDeactivate(id: string) {
+  async function handleToggleActive(u: UserDto) {
+    const activating = !u.isActive;
+    const verb = activating ? "Activate" : "Deactivate";
     if (
       !window.confirm(
-        "Deactivate this user? They will no longer be able to log in.",
+        activating
+          ? "Activate this user? They will be able to log in again."
+          : "Deactivate this user? They will no longer be able to log in.",
       )
     )
       return;
     try {
-      await usersApi.deactivateUser(id);
-      toastSuccess('User deactivated');
+      await usersApi.setActive(u.id, activating);
+      toastSuccess(`User ${activating ? "activated" : "deactivated"}`);
       loadData();
     } catch (error) {
-      toastApiError(error,"Failed to deactivate user");
+      toastApiError(error, `Failed to ${verb.toLowerCase()} user`);
     }
   }
 
-  const filtered = users.filter(
-    (u) =>
-      u.fullName.toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase()),
-  );
+  async function handleDelete(u: UserDto) {
+    if (
+      !window.confirm(
+        `Permanently delete ${u.fullName}? This cannot be undone. ` +
+          "Users with requests or approvals on record cannot be deleted — " +
+          "deactivate them instead.",
+      )
+    )
+      return;
+    try {
+      await usersApi.deleteUser(u.id);
+      toastSuccess("User deleted");
+      loadData();
+    } catch (error) {
+      toastApiError(error, "Failed to delete user");
+    }
+  }
+
+  const filtered = users.filter((u) => {
+    const q = search.toLowerCase();
+    const matchesSearch =
+      !q ||
+      u.fullName.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q);
+    const matchesRole = !roleFilter || u.role === roleFilter;
+    const matchesStatus =
+      !statusFilter ||
+      (statusFilter === "active" ? u.isActive : !u.isActive);
+    return matchesSearch && matchesRole && matchesStatus;
+  });
 
   const columns: Column<UserDto>[] = [
     { header: "Name", accessor: (u) => u.fullName },
@@ -82,17 +113,24 @@ export default function AdminUsers() {
     },
     {
       header: "Actions",
-      accessor: (u) =>
-        u.isActive ? (
+      accessor: (u) => (
+        <div className="flex items-center gap-3">
           <button
-            onClick={() => handleDeactivate(u.id)}
-            className="text-status-rejected font-medium hover:underline"
+            onClick={() => handleToggleActive(u)}
+            className={`font-medium hover:underline ${
+              u.isActive ? "text-status-rejected" : "text-status-approved"
+            }`}
           >
-            Deactivate
+            {u.isActive ? "Deactivate" : "Activate"}
           </button>
-        ) : (
-          <span className="text-gray-300">—</span>
-        ),
+          <button
+            onClick={() => handleDelete(u)}
+            className="text-gray-500 font-medium hover:underline hover:text-status-rejected"
+          >
+            Delete
+          </button>
+        </div>
+      ),
     },
   ];
 
@@ -105,11 +143,40 @@ export default function AdminUsers() {
         </Button>
       </div>
 
-      <SearchFilterBar
-        value={search}
-        onChange={setSearch}
-        placeholder="Search by name or email"
-      />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex-1">
+          <SearchFilterBar
+            value={search}
+            onChange={setSearch}
+            placeholder="Search by name or email"
+          />
+        </div>
+        <select
+          title="Filter by role"
+          value={roleFilter}
+          onChange={(e) => setRoleFilter(e.target.value as Role | "")}
+          className="px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+        >
+          <option value="">All roles</option>
+          {ROLE_OPTIONS.map((r) => (
+            <option key={r} value={r}>
+              {formatLabel(r)}
+            </option>
+          ))}
+        </select>
+        <select
+          title="Filter by status"
+          value={statusFilter}
+          onChange={(e) =>
+            setStatusFilter(e.target.value as "" | "active" | "inactive")
+          }
+          className="px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+        >
+          <option value="">All statuses</option>
+          <option value="active">Active</option>
+          <option value="inactive">Deactivated</option>
+        </select>
+      </div>
 
       {isLoading ? (
         <p className="text-sm text-gray-400 text-center py-12">Loading...</p>

@@ -2,6 +2,7 @@ package com.asa.asaunify.dtos;
 
 
 import com.asa.asaunify.enums.Role;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -22,6 +23,7 @@ public class UserDto {
     private Role role;
     private UUID departmentId;
     private String departmentName;
+    @JsonProperty("isActive")
     private boolean isActive;
     private LocalDateTime createdAt;
 }

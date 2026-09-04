@@ -30,6 +30,8 @@ public interface LoginHistoryRepo extends JpaRepository<LoginHistory, UUID> {
 
     Optional<LoginHistory> findTopByUserAndLogoutAtIsNullOrderByLoginAtDesc(User user);
 
+    void deleteByUser(User user);
+
     @Query("SELECT COUNT(l) FROM LoginHistory l WHERE l.user = :user " +
             "AND l.loginStatus = 'FAILED' AND l.loginAt >= :since")
     long countFailedAttempts(User user, LocalDateTime since);

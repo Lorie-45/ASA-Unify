@@ -34,6 +34,9 @@ public class UserService {
     private final DepartmentRepo departmentRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
+    private final com.asa.asaunify.repos.LoginHistoryRepo loginHistoryRepository;
+    private final com.asa.asaunify.repos.NotificationRepo notificationRepository;
+    private final com.asa.asaunify.repos.AuditLogRepo auditLogRepository;
 
     @Transactional
     public UserDto createUser(
@@ -198,24 +201,37 @@ public class UserService {
     }
 
 
+    // Hard delete. Removes the user and their transient records (login
+    // history, notifications) and detaches them from the audit trail. Business
+    // records (requests, memos, approvals, trips) have NOT NULL references to
+    // the user, so a user with any of those cannot be deleted — the resulting
+    // DataIntegrityViolationException is mapped to a 409 telling the admin to
+    // deactivate instead.
     @Transactional
-    public void deactivateUser(
+    public void deleteUser(
             UUID id,
-            User deactivatedBy,
+            User deletedBy,
             HttpServletRequest httpRequest) {
 
         User user = findUserById(id);
-        user.setActive(false);
-        userRepository.save(user);
 
+        // Audit the deletion first (before removing the user's own log links).
         auditService.log(
-                deactivatedBy,
+                deletedBy,
                 ActionType.USER_DEACTIVATED,
                 "USER",
                 user.getId().toString(),
                 "USERS",
                 httpRequest
         );
+
+        // Clear transient references, then delete.
+        loginHistoryRepository.deleteByUser(user);
+        notificationRepository.deleteByUser(user);
+        auditLogRepository.detachUser(user);
+
+        userRepository.delete(user);
+        userRepository.flush(); // surface any remaining FK violation now
     }
 
 
