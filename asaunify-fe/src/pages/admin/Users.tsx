@@ -8,6 +8,7 @@ import DataTable, { type Column } from "../../components/ui/DataTable";
 import { Role } from "../../types/enums";
 import type { UserDto, Department } from "../../types/user.types";
 import { toastApiError, toastSuccess } from "../../utils/toast";
+import { normalizeEmail, validateEmail, validatePassword } from "../../utils/validation";
 
 const ROLE_OPTIONS = Object.values(Role);
 
@@ -231,6 +232,20 @@ function CreateUserModal({
       setError("Please fill in all required fields");
       return;
     }
+    // These inputs are not inside a form element, so the browser never runs
+    // its own type="email" check here. Without this, a malformed address
+    // reached the API and came back as the misleading "already in use" error
+    // below.
+    const emailError = validateEmail(email);
+    if (emailError) {
+      setError(emailError);
+      return;
+    }
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      setError(passwordError);
+      return;
+    }
     if (needsDepartment && !departmentId) {
       setError("Please select a department for this role");
       return;
@@ -241,7 +256,7 @@ function CreateUserModal({
     try {
       await usersApi.createUser({
         fullName,
-        email,
+        email: normalizeEmail(email),
         password,
         role: role as Role,
         departmentId: needsDepartment ? departmentId : undefined,
@@ -250,7 +265,7 @@ function CreateUserModal({
       onCreated();
     } catch (err) {
       toastApiError(err,"Failed to create user");
-      setError("Failed to create user. Email may already be in use.");
+      setError("Failed to create user. The email may already be in use.");
     } finally {
       setIsSubmitting(false);
     }

@@ -3,6 +3,7 @@ package com.asa.asaunify.config;
 
 import com.asa.asaunify.entity.User;
 import com.asa.asaunify.repos.UserRepo;
+import com.asa.asaunify.util.EmailNormalizer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -22,9 +23,13 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     public UserDetails loadUserByUsername(String email)
             throws UsernameNotFoundException {
 
-        User user = userRepository.findByEmail(email)
+        // Normalized so a lookup can never miss on casing or stray whitespace
+        // — addresses are stored in canonical form.
+        String normalizedEmail = EmailNormalizer.normalize(email);
+
+        User user = userRepository.findByEmail(normalizedEmail)
                 .orElseThrow(() -> new UsernameNotFoundException(
-                        "User not found with email: " + email
+                        "User not found with email: " + normalizedEmail
                 ));
 
         // Check if user is active — deactivated users cannot log in
@@ -42,14 +47,15 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 "ROLE_" + user.getRole().name()
         );
 
-        return org.springframework.security.core.userdetails.User
-                .withUsername(user.getEmail())
-                .password(user.getPasswordHash())
-                .authorities(List.of(authority))
-                .accountExpired(false)
-                .accountLocked(!user.isActive())
-                .credentialsExpired(false)
-                .disabled(!user.isActive())
-                .build();
+        // AppUserDetails carries passwordChangedAt so JwtFilter can reject
+        // tokens minted before the last password change. Same flags as before.
+        return new AppUserDetails(
+                user.getEmail(),
+                user.getPasswordHash(),
+                user.isActive(),
+                user.isActive(),
+                List.of(authority),
+                user.getPasswordChangedAt()
+        );
     }
 }

@@ -3,7 +3,11 @@ package com.asa.asaunify.controllers;
 
 import com.asa.asaunify.dtos.auth.AuthRequest;
 import com.asa.asaunify.dtos.auth.AuthResponse;
+import com.asa.asaunify.dtos.auth.ForgotPasswordRequest;
+import com.asa.asaunify.dtos.auth.ResetPasswordRequest;
+import com.asa.asaunify.dtos.auth.VerifyResetCodeRequest;
 import com.asa.asaunify.services.AuthService;
+import com.asa.asaunify.services.PasswordResetService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.time.Duration;
+import java.util.Map;
 
 
 @RestController
@@ -27,6 +32,7 @@ import java.time.Duration;
 public class AuthController {
 
     private final AuthService authService;
+    private final PasswordResetService passwordResetService;
 
     // Name of the httpOnly cookie carrying the refresh token.
     private static final String REFRESH_COOKIE = "refreshToken";
@@ -98,6 +104,54 @@ public class AuthController {
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
                 .body(auth);
+    }
+
+    // ─── Password reset ───────────────────────────────────────
+
+    // POST /api/auth/forgot-password
+    // Always 200 with the same body. A different status or message for an
+    // unknown address would turn this endpoint into an account enumerator.
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Map<String, String>> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request,
+            HttpServletRequest httpRequest) {
+
+        passwordResetService.requestReset(request, httpRequest);
+
+        return ResponseEntity.ok(Map.of(
+                "message", PasswordResetService.GENERIC_REQUEST_RESPONSE));
+    }
+
+    // POST /api/auth/verify-reset-code
+    // Checks the code without spending it, so the client can show the
+    // new-password step. The code is still required at reset time.
+    @PostMapping("/verify-reset-code")
+    public ResponseEntity<Map<String, String>> verifyResetCode(
+            @Valid @RequestBody VerifyResetCodeRequest request) {
+
+        passwordResetService.verifyCode(request);
+
+        return ResponseEntity.ok(Map.of(
+                "message", "Verification code accepted."));
+    }
+
+    // POST /api/auth/reset-password
+    @PostMapping("/reset-password")
+    public ResponseEntity<Map<String, String>> resetPassword(
+            @Valid @RequestBody ResetPasswordRequest request,
+            HttpServletRequest httpRequest) {
+
+        passwordResetService.resetPassword(request, httpRequest);
+
+        // The reset invalidates existing sessions, so clear the refresh cookie
+        // on this client too rather than leaving a token that will be refused.
+        ResponseCookie cleared = buildRefreshCookie("", Duration.ZERO);
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, cleared.toString())
+                .body(Map.of("message",
+                        "Password updated. You can now log in with your new "
+                                + "password."));
     }
 
     private ResponseCookie buildRefreshCookie(String value, Duration maxAge) {

@@ -71,6 +71,16 @@ public class JwtFilter extends OncePerRequestFilter {
 
             UserDetails userDetails = userDetailsService.loadUserByUsername(email);
 
+            // A password reset invalidates every token issued before it.
+            // Without this, an attacker holding a live access token would keep
+            // access after the owner reset their password — which is most of
+            // the point of resetting it. Refresh tokens are stateless JWTs and
+            // carry the same iat claim, so they are covered too.
+            if (isIssuedBeforePasswordChange(token, userDetails)) {
+                filterChain.doFilter(request, response);
+                return;
+            }
+
             if (jwtUtil.isTokenValid(token, userDetails.getUsername())) {
                 UsernamePasswordAuthenticationToken authToken =
                         new UsernamePasswordAuthenticationToken(
@@ -88,6 +98,31 @@ public class JwtFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
+    /**
+     * True if the token predates the account's last password change, in which
+     * case it must no longer authenticate anyone.
+     *
+     * Both values are second-resolution: a JWT iat claim has no sub-second
+     * part, and passwordChangedAt is truncated to match. A token minted in the
+     * same second as the reset is therefore kept — an irrelevant window in
+     * practice, and it avoids rejecting the fresh login that follows a reset.
+     */
+    private boolean isIssuedBeforePasswordChange(
+            String token, UserDetails userDetails) {
+
+        if (!(userDetails instanceof AppUserDetails appUser)) {
+            return false;
+        }
+        java.time.Instant changedAt = appUser.getPasswordChangedAt();
+        if (changedAt == null) {
+            return false;   // password never changed — nothing to invalidate
+        }
+
+        java.time.Instant issuedAt = jwtUtil.extractIssuedAt(token);
+        // A token with no iat cannot be proven current, so treat it as stale.
+        return issuedAt == null || issuedAt.isBefore(changedAt);
+    }
+
     // Skip JWT filter for endpoints that don't need an authenticated principal.
     // NOTE: logout is intentionally NOT skipped — it needs the authenticated
     // user in order to revoke that user's tokens.
@@ -96,6 +131,11 @@ public class JwtFilter extends OncePerRequestFilter {
         String path = request.getServletPath();
         return path.equals("/api/auth/login")
                 || path.equals("/api/auth/refresh")
+                // Password reset is for users who cannot authenticate, so no
+                // principal is needed or expected on these.
+                || path.equals("/api/auth/forgot-password")
+                || path.equals("/api/auth/verify-reset-code")
+                || path.equals("/api/auth/reset-password")
                 || path.startsWith("/ws/");
     }
 }

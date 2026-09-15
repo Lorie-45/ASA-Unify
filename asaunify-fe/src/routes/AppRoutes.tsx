@@ -3,6 +3,7 @@ import ProtectedRoute from "./ProtectedRoute";
 import AppShell from "../components/layout/AppShell";
 import { Role } from "../types/enums";
 import Login from "../pages/Login";
+import ForgotPassword from "../pages/ForgotPassword";
 import Dashboard from "../pages/Dashboard";
 import RequestList from "../pages/requests/RequestList";
 import NewRequest from "../pages/requests/NewRequest";
@@ -28,6 +29,7 @@ export default function AppRoutes() {
       <Routes>
         {/* Public */}
         <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
 
         {/* Protected — wrapped in AppShell (Sidebar + Topbar) */}
         <Route
