@@ -94,6 +94,12 @@ export const requestsApi = {
     return response.data;
   },
 
+  // Draft-only, initiator-only (enforced server-side). Used to discard a
+  // draft from the UI and to roll back a draft whose submit failed.
+  deleteDraft: async (id: string): Promise<void> => {
+    await api.delete(`/requests/${id}`);
+  },
+
   getLoanRequests: async (): Promise<RequestResponseDto[]> => {
     const response =
       await api.get<RequestResponseDto[]>("/requests/loans");

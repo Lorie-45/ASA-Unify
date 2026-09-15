@@ -27,6 +27,7 @@ public enum ActionType {
         USER_UPDATED,
         USER_DEACTIVATED,
 
-        REQUEST_CANCELLED
+        REQUEST_CANCELLED,
+        REQUEST_DELETED
 
 }

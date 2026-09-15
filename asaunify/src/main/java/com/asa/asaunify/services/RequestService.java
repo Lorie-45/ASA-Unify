@@ -19,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +39,7 @@ public class RequestService {
     private final NotificationService notificationService;
     private final AuditService auditService;
     private final UserService userService;
+    private final LoanMatrixService loanMatrixService;
 
     // ─── Create (Save as Draft) ───────────────────────────────
 
@@ -565,7 +567,24 @@ public class RequestService {
         if (dto.getTitle() != null) request.setTitle(dto.getTitle());
         if (dto.getDetails() != null) request.setDetails(dto.getDetails());
         if (dto.getNotes() != null) request.setNotes(dto.getNotes());
-        if (dto.getExtraFields() != null) request.setExtraFields(dto.getExtraFields());
+
+        if (dto.getExtraFields() != null) {
+            // Editing a draft must honour the same loan bounds as creating one,
+            // otherwise an out-of-range amount can be written back in.
+            if (request.getType() == RequestType.LOAN) {
+                Object rawAmount = dto.getExtraFields().get("amount");
+                if (rawAmount == null) {
+                    throw new IllegalArgumentException(
+                            "Loan requests must include amount in extra fields"
+                    );
+                }
+                loanMatrixService.validateAmount(
+                        parseAmount(rawAmount),
+                        Boolean.TRUE.equals(dto.getExtraFields().get("is_top_up"))
+                );
+            }
+            request.setExtraFields(dto.getExtraFields());
+        }
 
         Request saved = requestRepository.save(request);
 
@@ -579,6 +598,44 @@ public class RequestService {
         );
 
         return toDTO(saved);
+    }
+
+    // ─── Delete (Draft only) ──────────────────────────────────
+
+    @Transactional
+    public void deleteDraft(
+            UUID id,
+            User currentUser,
+            HttpServletRequest httpRequest) {
+
+        Request request = findRequestById(id);
+
+        // Only the initiator can discard their own draft
+        if (!request.getInitiator().getId().equals(currentUser.getId())) {
+            throw new IllegalArgumentException(
+                    "You can only delete your own requests"
+            );
+        }
+
+        // Anything past DRAFT is part of an audit trail — cancel it instead
+        if (request.getStatus() != RequestStatus.DRAFT) {
+            throw new IllegalArgumentException(
+                    "Only draft requests can be deleted. Cancel the request instead."
+            );
+        }
+
+        // Log before the row disappears so the audit trail keeps the case id
+        auditService.log(
+                currentUser,
+                ActionType.REQUEST_DELETED,
+                "REQUEST",
+                request.getId().toString(),
+                "REQUESTS",
+                httpRequest
+        );
+
+        // Attachments cascade via CascadeType.ALL; a draft has no stages yet
+        requestRepository.delete(request);
     }
 
     // ─── Helpers ──────────────────────────────────────────────
@@ -666,6 +723,17 @@ public class RequestService {
                         "Loan requests must include amount in extra fields"
                 );
             }
+
+            // Enforce the loan matrix bounds up front. This used to run only
+            // at submit time, so an out-of-range amount still persisted a
+            // draft that the UI could never surface or delete.
+            BigDecimal amount = parseAmount(
+                    dto.getExtraFields().get("amount")
+            );
+            boolean isTopUp = Boolean.TRUE.equals(
+                    dto.getExtraFields().get("is_top_up")
+            );
+            loanMatrixService.validateAmount(amount, isTopUp);
         }
         if (dto.getType() == RequestType.VEHICLE) {
             if (dto.getExtraFields() == null ||
@@ -682,6 +750,18 @@ public class RequestService {
                         "Equipment requests must include item_name in extra fields"
                 );
             }
+        }
+    }
+
+    // extraFields is free-form JSON, so amount can arrive as Integer,
+    // Double or String depending on the client.
+    private BigDecimal parseAmount(Object raw) {
+        try {
+            return new BigDecimal(raw.toString());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(
+                    "Loan amount must be a valid number"
+            );
         }
     }
 
@@ -702,7 +782,7 @@ public class RequestService {
 
     // Auto-generate reference number CN-001, CN-002...
     private String generateReferenceNumber() {
-        return requestRepository.findLatestReferenceNumber()
+        return requestRepository.findLatestCaseId()
                 .map(last -> {
                     int number = Integer.parseInt(last.replace("CN-", ""));
                     return String.format("CN-%03d", number + 1);

@@ -18,6 +18,7 @@ import type { RequestResponseDto } from "../types/request.types";
 export default function LoanApprovals() {
   const navigate = useNavigate();
   const role = useAuthStore((state) => state.role);
+  const userId = useAuthStore((state) => state.userId);
   const { isAdmin } = usePermissions();
 
   const [loans, setLoans] = useState<RequestResponseDto[]>([]);
@@ -77,6 +78,14 @@ export default function LoanApprovals() {
     return activeStage?.assignedRole === role;
   }
 
+  // Own drafts. getLoanRequests returns every loan in the department, so
+  // scope these to the signed-in user — only the initiator can edit or
+  // discard a draft. Without this section a draft loan is counted on the
+  // dashboard but rendered nowhere, since RequestList excludes type LOAN.
+  const drafts = loans.filter(
+    (r) => r.status === RequestStatus.DRAFT && r.initiatorId === userId,
+  );
+
   // Split into pending and history
   const pending = loans.filter((r) => r.status === RequestStatus.PENDING);
   const history = loans.filter(
@@ -96,8 +105,22 @@ export default function LoanApprovals() {
     );
   }
 
+  const filteredDrafts = filterLoans(drafts);
   const filteredPending = filterLoans(pending);
   const filteredHistory = filterLoans(history);
+
+  async function handleDiscardDraft(id: string, caseId: string) {
+    if (!window.confirm(`Discard draft ${caseId}? This cannot be undone.`)) {
+      return;
+    }
+    try {
+      await requestsApi.deleteDraft(id);
+      toastSuccess(`Draft ${caseId} discarded`);
+      loadLoans();
+    } catch (err) {
+      toastApiError(err, "Failed to discard draft. Please try again.");
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -118,6 +141,26 @@ export default function LoanApprovals() {
         <p className="text-sm text-gray-400 text-center py-12">Loading...</p>
       ) : (
         <>
+          {/* Own drafts — not yet submitted */}
+          {filteredDrafts.length > 0 && (
+            <Section
+              title={`Drafts (${filteredDrafts.length})`}
+              subtitle="Saved but not yet submitted"
+            >
+              <CardGrid>
+                {filteredDrafts.map((r) => (
+                  <LoanCard
+                    key={r.id}
+                    request={r}
+                    canAct={false}
+                    onViewDetails={() => navigate(`/requests/${r.id}`)}
+                    onDiscard={() => handleDiscardDraft(r.id, r.caseId)}
+                  />
+                ))}
+              </CardGrid>
+            </Section>
+          )}
+
           {/* Pending loans */}
           <Section
             title={`Pending (${filteredPending.length})`}
@@ -193,12 +236,14 @@ function LoanCard({
   onViewDetails,
   onApprove,
   onReject,
+  onDiscard,
 }: {
   request: RequestResponseDto;
   canAct: boolean;
   onViewDetails: () => void;
   onApprove?: () => void;
   onReject?: () => void;
+  onDiscard?: () => void;
 }) {
   const amount = request.extraFields?.amount
     ? Number(request.extraFields.amount).toLocaleString()
@@ -283,6 +328,24 @@ function LoanCard({
             className="flex-1 bg-red-100 text-red-600 py-2 rounded-lg text-sm font-medium hover:bg-red-200"
           >
             Reject
+          </button>
+        </div>
+      )}
+
+      {/* Draft actions — initiator only */}
+      {onDiscard && (
+        <div className="flex gap-2 mt-2">
+          <button
+            onClick={onViewDetails}
+            className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-200"
+          >
+            Open
+          </button>
+          <button
+            onClick={onDiscard}
+            className="flex-1 bg-red-100 text-red-600 py-2 rounded-lg text-sm font-medium hover:bg-red-200"
+          >
+            Discard
           </button>
         </div>
       )}

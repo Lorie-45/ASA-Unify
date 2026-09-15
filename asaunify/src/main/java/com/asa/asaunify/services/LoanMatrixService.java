@@ -62,8 +62,14 @@ public class LoanMatrixService {
     // Validate the loan amount is within allowed bounds
     private void validateAmount(BigDecimal amount, Request request) {
         Boolean isTopUp = (Boolean) request.getExtraField("is_top_up");
+        validateAmount(amount, Boolean.TRUE.equals(isTopUp));
+    }
 
-        if (Boolean.TRUE.equals(isTopUp)) {
+    // Same bounds check, callable before a Request entity exists (e.g. at
+    // draft creation). Single source of truth for the loan range rules —
+    // both draft validation and workflow initialisation route through here.
+    public void validateAmount(BigDecimal amount, boolean isTopUp) {
+        if (isTopUp) {
             // Top-up validation — only MSME Silver supports top-ups
             // Maximum increment is 1,500,000 RWF
             if (amount.compareTo(MSME_SILVER_MAX_INCREMENT) > 0) {

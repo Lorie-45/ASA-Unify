@@ -11,6 +11,7 @@ import LoanFields from "../../components/requests/LoanFields";
 import FileUploader from "../../components/ui/FileUploader";
 import { useAuthStore } from "../../store/authStore";
 import { toastApiError, toastError, toastSuccess } from "../../utils/toast";
+import { LOAN_LIMITS } from "../../utils/loanLimits";
 
 export default function NewRequest() {
   const navigate = useNavigate();
@@ -61,8 +62,29 @@ export default function NewRequest() {
     if (type === RequestType.VEHICLE && (!destination.trim() || !tripDate)) {
       return "Please fill in destination and trip date";
     }
-    if (type === RequestType.LOAN && amount <= 0) {
-      return "Please enter a valid loan amount";
+    if (type === RequestType.LOAN) {
+      if (amount <= 0) {
+        return "Please enter a valid loan amount";
+      }
+      // Mirrors LoanMatrixService on the backend, which is authoritative.
+      // Checked here so an out-of-range amount never reaches the API.
+      if (isTopUp) {
+        if (amount > LOAN_LIMITS.TOP_UP_MAX) {
+          return "Top-up amount exceeds maximum increment of 1,500,000 RWF";
+        }
+      } else {
+        const inSilver =
+          amount >= LOAN_LIMITS.SILVER_MIN && amount <= LOAN_LIMITS.SILVER_MAX;
+        const inGold =
+          amount >= LOAN_LIMITS.GOLD_MIN && amount <= LOAN_LIMITS.GOLD_MAX;
+        if (!inSilver && !inGold) {
+          return (
+            "Loan amount is outside the allowed range. " +
+            "MSME Silver: 2,000,001 – 5,000,000 RWF · " +
+            "MSME Gold: 5,000,001 – 10,000,000 RWF"
+          );
+        }
+      }
     }
     return null;
   }
@@ -93,7 +115,16 @@ export default function NewRequest() {
       const created = await requestsApi.createDraft(dto);
 
       if (submit) {
-        await requestsApi.submitRequest(created.id);
+        try {
+          await requestsApi.submitRequest(created.id);
+        } catch (submitErr) {
+          // Create and submit are two calls, so a failed submit would
+          // otherwise strand the draft that create just persisted.
+          await requestsApi.deleteDraft(created.id).catch(() => {
+            // Rollback is best-effort — surface the original submit error
+          });
+          throw submitErr;
+        }
         toastSuccess("Request submitted successfully");
       } else {
         toastSuccess("Draft saved successfully");
