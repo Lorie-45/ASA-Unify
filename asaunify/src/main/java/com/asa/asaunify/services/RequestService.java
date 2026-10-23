@@ -146,7 +146,9 @@ public class RequestService {
             User currentUser,
             HttpServletRequest httpRequest) {
 
-        Request request = findRequestById(requestId);
+        // Row lock: two approvers acting at once must not both read the other
+        // as "still pending", which would leave a parallel request stuck.
+        Request request = findRequestForUpdate(requestId);
 
         // Validate comment is provided on rejection
         if (dto.getAction() == StageStatus.REJECTED &&
@@ -156,41 +158,37 @@ public class RequestService {
             );
         }
 
-        // Find the stage assigned to the current user's role
-        // For parallel stages, allow action even if request is REJECTED
-        // (another parallel approver may have already rejected)
-        ApprovalStage stage = findActiveStageForUser(request, currentUser);
-
-        // Validate the request can still be acted on
-        // Sequential: must be PENDING
-        // Parallel: allow action if stage is still PENDING regardless of request status
-        if (!stage.isParallel() && request.getStatus() != RequestStatus.PENDING) {
+        // Only a live (PENDING) request can be acted on. A cancelled, rejected
+        // or completed workflow is closed for good - this also stops a stage
+        // that was left open by a cancellation from being approved later.
+        if (request.getStatus() != RequestStatus.PENDING) {
             throw new IllegalArgumentException(
                     "Request is not in a pending state"
             );
         }
 
-        // Completed requests can never be acted on
-        if (request.getStatus() == RequestStatus.COMPLETED) {
-            throw new IllegalArgumentException(
-                    "Request has already been completed"
-            );
-        }
+        // The stage(s) this user may act on: their own role's stage (for a
+        // department head, only on requests of their own department), or every
+        // open stage of the current step for an admin.
+        List<ApprovalStage> stages = findActionableStages(request, currentUser);
 
-        // Check if logistics action
-        if (currentUser.getRole() == Role.LOGISTICS &&
-                stage.getStageIndex() == 2 &&
-                dto.getInStock() != null) {
+        for (ApprovalStage stage : stages) {
+            stage.setActedBy(currentUser);
 
-            workflowEngine.processLogisticsAction(
-                    request, stage, dto.getInStock(), dto.getComment()
-            );
+            if (stage.getAssignedRole() == Role.LOGISTICS &&
+                    stage.getStageIndex() == 2 &&
+                    dto.getAction() == StageStatus.APPROVED &&
+                    dto.getInStock() != null) {
 
-        } else {
-            // Single call to workflow engine — removed the duplicate
-            workflowEngine.processAction(
-                    request, stage, dto.getAction(), dto.getComment()
-            );
+                workflowEngine.processLogisticsAction(
+                        request, stage, dto.getInStock(), dto.getComment()
+                );
+
+            } else {
+                workflowEngine.processAction(
+                        request, stage, dto.getAction(), dto.getComment()
+                );
+            }
         }
 
         // Refresh request after workflow engine processed it
@@ -224,7 +222,7 @@ public class RequestService {
         return toDTO(requestRepository.findById(requestId).orElseThrow());
     }
 
-    // ─── Cancel (Admin / Dept Head / Higher-ups) ──────────────
+    // ─── Cancel (Admin / head of the request's department) ────
 
     @Transactional
     public RequestResponseDto cancelRequest(
@@ -233,25 +231,39 @@ public class RequestService {
             User currentUser,
             HttpServletRequest httpRequest) {
 
-        Request request = findRequestById(requestId);
+        Request request = findRequestForUpdate(requestId);
 
-        validateCanCancel(currentUser);
+        if (!canCancel(request, currentUser)) {
+            // Same answer as a miss: no existence disclosure.
+            throw new ResourceNotFoundException("Request not found");
+        }
 
-        if (request.getStatus() == RequestStatus.COMPLETED ||
-                request.getStatus() == RequestStatus.REJECTED) {
+        if (reason == null || reason.isBlank()) {
             throw new IllegalArgumentException(
-                    "Cannot cancel a completed or already rejected request"
+                    "A reason is required to cancel a request"
             );
         }
 
-        request.setStatus(RequestStatus.REJECTED);
+        // Approved requests can still be cancelled; anything already finished
+        // (or never started) cannot.
+        if (request.getStatus() != RequestStatus.PENDING &&
+                request.getStatus() != RequestStatus.APPROVED) {
+            throw new IllegalArgumentException(
+                    request.getStatus() == RequestStatus.DRAFT
+                            ? "Drafts are deleted, not cancelled"
+                            : "Only pending or approved requests can be cancelled"
+            );
+        }
+
+        // CANCELLED ends the workflow: processAction and the pending lists
+        // both require PENDING, so no remaining stage can be actioned.
+        request.setStatus(RequestStatus.CANCELLED);
         request.setRejectedBy(currentUser);
         request.setRejectedAt(LocalDateTime.now());
         request.setRejectionReason(reason);
         requestRepository.save(request);
 
-        // Notify all involved parties
-        notificationService.notifyRejection(request, null);
+        notificationService.notifyCancelled(request, reason);
 
         auditService.log(
                 currentUser,
@@ -265,16 +277,35 @@ public class RequestService {
         return toDTO(request);
     }
 
+    // Admins, and the head of the department the request belongs to.
+    private boolean canCancel(Request request, User user) {
+        if (user.getRole() == Role.ADMIN) {
+            return true;
+        }
+        return user.getRole() == Role.DEPARTMENT_HEAD
+                && user.getDepartment() != null
+                && request.getDepartment() != null
+                && request.getDepartment().getId()
+                        .equals(user.getDepartment().getId());
+    }
+
     @Transactional(readOnly = true)
     public List<RequestResponseDto> getLoanRequests(User user) {
-        if (user.getRole() == Role.ADMIN) {
-            // Admin sees all loan requests
+        if (user.getRole() == Role.ADMIN
+                || user.getRole() == Role.RM
+                || user.getRole() == Role.MSME_OFFICER
+                || user.getRole() == Role.CREDIT_OFFICER) {
+            // Admin and the loan approvers see every loan: approval is by role,
+            // not by the initiator's department.
             return requestRepository.findByType(RequestType.LOAN)
                     .stream()
                     .map(this::toDTO)
                     .collect(Collectors.toList());
         }
         // Others see loan requests from their department
+        if (user.getDepartment() == null) {
+            return List.of();
+        }
         return requestRepository.findByTypeAndDepartment(
                         RequestType.LOAN,
                         user.getDepartment()
@@ -293,8 +324,8 @@ public class RequestService {
             User currentUser,
             HttpServletRequest httpRequest) {
 
-        Request request = requestRepository.findById(requestId)
-                .orElseThrow(() -> new ResourceNotFoundException("Request not found"));
+        // Locked so a double-submit cannot create two assignments.
+        Request request = findRequestForUpdate(requestId);
 
         // Only Fleet Manager can assign drivers
         if (currentUser.getRole() != Role.FLEET_MANAGER) {
@@ -319,6 +350,9 @@ public class RequestService {
 
         if (driver.getRole() != Role.DRIVER) {
             throw new IllegalArgumentException("Selected user is not a driver");
+        }
+        if (!driver.isActive()) {
+            throw new IllegalArgumentException("Selected driver is not active");
         }
 
         // Create the trip assignment
@@ -419,6 +453,15 @@ public class RequestService {
     // Department requests — department head view
     @Transactional(readOnly = true)
     public List<RequestResponseDto> getDepartmentRequests(User deptHead) {
+        if (deptHead.getDepartment() == null) {
+            // Admins/auditors have no department and oversee everything;
+            // anyone else without one has nothing to show.
+            if (deptHead.getRole() == Role.ADMIN
+                    || deptHead.getRole() == Role.AUDITOR) {
+                return getAllRequests();
+            }
+            return List.of();
+        }
         return requestRepository
                 .findByDepartmentOrderByCreatedAtDesc(deptHead.getDepartment())
                 .stream()
@@ -477,27 +520,50 @@ public class RequestService {
 
     @Transactional(readOnly = true)
     public List<RequestResponseDto> getPendingForRole(User user) {
-        List<ApprovalStage> stages = approvalStageRepository
-                .findByAssignedRoleAndStatus(user.getRole(), StageStatus.PENDING);
+        if (user.getRole() == Role.ADMIN) {
+            return requestRepository.findAll().stream()
+                    .filter(r -> r.getStatus() == RequestStatus.PENDING)
+                    .map(this::toDTO)
+                    .collect(Collectors.toList());
+        }
 
-        // Sequential stages — only show if the request is still PENDING.
-        // Parallel stages — show even if prematurely marked REJECTED, as long
-        // as it is not COMPLETED.
-        return stages.stream()
+        return approvalStageRepository
+                .findByAssignedRoleAndStatus(user.getRole(), StageStatus.PENDING)
+                .stream()
+                .filter(stage -> stage.getRequest().getStatus() == RequestStatus.PENDING)
+                // Only requests that have actually reached this user's step.
+                .filter(stage -> stage.getStageIndex() == currentStepOf(stage.getRequest()))
+                .filter(stage -> canActOnStage(stage, stage.getRequest(), user))
                 .map(ApprovalStage::getRequest)
                 .distinct()
-                .filter(r ->
-                        r.getStatus() == RequestStatus.PENDING ||
-                                (r.getStatus() == RequestStatus.REJECTED &&
-                                        stages.stream()
-                                                .anyMatch(s -> s.getRequest().getId().equals(r.getId())
-                                                        && s.isParallel()))
-                )
-                .filter(r -> r.getStatus() != RequestStatus.COMPLETED)
                 .map(this::toDTO)
                 .collect(Collectors.toList());
     }
 
+    // Lowest step that still has an open stage on this request.
+    private int currentStepOf(Request request) {
+        return request.getApprovalStages().stream()
+                .filter(s -> s.getStatus() == StageStatus.PENDING
+                        && s.getActedAt() == null)
+                .mapToInt(ApprovalStage::getStageIndex)
+                .min()
+                .orElse(-1);
+    }
+
+    // Role must match; a department head's stage belongs to the head of the
+    // department the request came from, not to every department head.
+    private boolean canActOnStage(ApprovalStage stage, Request request, User user) {
+        if (stage.getAssignedRole() != user.getRole()) {
+            return false;
+        }
+        if (stage.getAssignedRole() == Role.DEPARTMENT_HEAD) {
+            return user.getDepartment() != null
+                    && request.getDepartment() != null
+                    && user.getDepartment().getId()
+                            .equals(request.getDepartment().getId());
+        }
+        return true;
+    }
 
     // All requests — admin/auditor view
     @Transactional(readOnly = true)
@@ -640,6 +706,12 @@ public class RequestService {
 
     // ─── Helpers ──────────────────────────────────────────────
 
+    private Request findRequestForUpdate(UUID id) {
+        return requestRepository.findByIdForUpdate(id)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Request not found"));
+    }
+
     private Request findRequestById(UUID id) {
         return requestRepository.findById(id)
                 .orElseThrow(() ->
@@ -669,7 +741,7 @@ public class RequestService {
 //                        ));
 //    }
 
-    private ApprovalStage findActiveStageForUser(
+    private List<ApprovalStage> findActionableStages(
             Request request,
             User user) {
 
@@ -680,13 +752,21 @@ public class RequestService {
                                 "No active stage found for this request"
                         ));
 
-        List<ApprovalStage> stages = approvalStageRepository
-                .findByRequestAndStageIndex(request, currentIndex);
+        List<ApprovalStage> open = approvalStageRepository
+                .findByRequestAndStageIndex(request, currentIndex)
+                .stream()
+                .filter(s -> s.getStatus() == StageStatus.PENDING)
+                .collect(Collectors.toList());
 
-        return stages.stream()
-                .filter(s -> s.getAssignedRole().equals(user.getRole())  // ← .equals() not ==
-                        && s.getStatus() == StageStatus.PENDING)
+        // Admins hold every right: they resolve the whole current step.
+        if (user.getRole() == Role.ADMIN && !open.isEmpty()) {
+            return open;
+        }
+
+        return open.stream()
+                .filter(s -> canActOnStage(s, request, user))
                 .findFirst()
+                .map(List::of)
                 .orElseThrow(() ->
                         new IllegalArgumentException(
                                 "You are not authorized to act on this request"
@@ -697,20 +777,6 @@ public class RequestService {
         if (!user.canInitiateRequests()) {
             throw new IllegalArgumentException(
                     "Your role is not allowed to create requests"
-            );
-        }
-    }
-
-    private void validateCanCancel(User user) {
-        boolean canCancel = user.getRole() == Role.ADMIN
-                || user.getRole() == Role.DEPARTMENT_HEAD
-                || user.getRole() == Role.RM
-                || user.getRole() == Role.MSME_OFFICER
-                || user.getRole() == Role.CREDIT_OFFICER;
-
-        if (!canCancel) {
-            throw new IllegalArgumentException(
-                    "You are not authorized to cancel requests"
             );
         }
     }
@@ -782,6 +848,7 @@ public class RequestService {
 
     // Auto-generate reference number CN-001, CN-002...
     private String generateReferenceNumber() {
+        requestRepository.lockCaseIdGeneration();
         return requestRepository.findLatestCaseId()
                 .map(last -> {
                     int number = Integer.parseInt(last.replace("CN-", ""));
@@ -871,11 +938,9 @@ public class RequestService {
     private void validateRoleForRequestType(Role role, RequestType type) {
         switch (type) {
             case LOAN -> {
-                if (role != Role.LOAN_OFFICER &&
-                        role != Role.MSME_OFFICER &&
-                        role != Role.RM) {
+                if (role != Role.LOAN_OFFICER) {
                     throw new IllegalArgumentException(
-                            "Only Loan Officers, MSME Officers, and RMs can create Loan requests"
+                            "Only Loan Officers can create Loan requests"
                     );
                 }
             }

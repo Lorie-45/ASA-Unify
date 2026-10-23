@@ -322,8 +322,11 @@ export default function NewMemo() {
                     >
                       {user.fullName}
                     </p>
-                    <p className="text-xs text-gray-400 truncate">
-                      {formatRole(user.role)}
+                    <p className="text-xs text-gray-500 truncate">
+                      <span className="font-semibold">
+                        {formatRole(user.role)}
+                      </span>
+                      {user.departmentName ? ` · ${user.departmentName}` : ""}
                     </p>
                   </div>
                 </label>

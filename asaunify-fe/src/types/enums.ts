@@ -27,6 +27,7 @@ export const RequestStatus = {
   APPROVED: 'APPROVED',
   REJECTED: 'REJECTED',
   COMPLETED: 'COMPLETED',
+  CANCELLED: 'CANCELLED',
 } as const;
 export type RequestStatus = (typeof RequestStatus)[keyof typeof RequestStatus];
 
@@ -66,9 +67,9 @@ export type ActionType = (typeof ActionType)[keyof typeof ActionType];
 
 export const NON_INITIATOR_ROLES: Role[] = [Role.DRIVER, Role.AUDITOR];
 
+// Only admins and department heads cancel a request (a department head only
+// for their own department - see RequestDetails; the server enforces it).
 export const CANCEL_AUTHORIZED_ROLES: Role[] = [
   Role.ADMIN,
   Role.DEPARTMENT_HEAD,
-  Role.RM,
-  Role.MSME_OFFICER,
 ];

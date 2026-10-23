@@ -85,6 +85,9 @@ public class WorkflowEngine {
             String comment) {
 
         // Store the stock decision in the request's extraFields
+        if (request.getExtraFields() == null) {
+            request.setExtraFields(new java.util.HashMap<>());
+        }
         request.getExtraFields().put("in_stock", inStock);
         requestRepository.save(request);
 

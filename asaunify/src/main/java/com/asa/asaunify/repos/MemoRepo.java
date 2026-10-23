@@ -39,6 +39,11 @@ public interface MemoRepo extends JpaRepository<Memo, UUID> {
     @Query("SELECT m.caseId FROM Memo m ORDER BY m.createdAt DESC LIMIT 1")
     Optional<String> findLatestCaseId();
 
+    // See RequestRepo.lockCaseIdGeneration - distinct lock key per sequence.
+    @Query(value = "SELECT 1 FROM (SELECT pg_advisory_xact_lock(7102)) t",
+            nativeQuery = true)
+    Integer lockCaseIdGeneration();
+
     // Count memos by status — used in dashboard
     long countByStatus(RequestStatus status);
 
@@ -51,10 +56,11 @@ public interface MemoRepo extends JpaRepository<Memo, UUID> {
 //    );
 
     @Query("SELECT DISTINCT m FROM Memo m JOIN m.approvalStages s " +
-            "WHERE (s.assignedTo = :user OR s.assignedRole = :role) " +
+            "WHERE (s.assignedTo = :user " +
+            "OR (s.assignedTo IS NULL AND s.assignedRole = :role)) " +
             "AND s.status = 'PENDING' " +
             "AND m.status = 'PENDING'")
-    List<Memo> findPendingMemosByRoleOrUser(
+    List<Memo> findPendingMemosForUser(
             @Param("user") User user,
             @Param("role") Role role
     );

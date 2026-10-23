@@ -120,4 +120,18 @@ public interface RequestRepo extends JpaRepository<Request, UUID> {
     @Query("SELECT r.caseId FROM Request r " +
             "ORDER BY r.createdAt DESC LIMIT 1")
     Optional<String> findLatestCaseId();
+
+    // Serialises reference-number generation across concurrent creators.
+    // Transaction-scoped: released automatically on commit/rollback, and the
+    // next holder then sees the committed row.
+    @Query(value = "SELECT 1 FROM (SELECT pg_advisory_xact_lock(7101)) t",
+            nativeQuery = true)
+    Integer lockCaseIdGeneration();
+
+    // Row lock so concurrent approvals / driver assignment on one request
+    // run one at a time instead of both reading stale stage state.
+    @org.springframework.data.jpa.repository.Lock(
+            jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM Request r WHERE r.id = :id")
+    Optional<Request> findByIdForUpdate(@Param("id") java.util.UUID id);
 }

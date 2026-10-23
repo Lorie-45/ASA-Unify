@@ -58,56 +58,27 @@ public class VehicleWorkflowStrategy implements WorkflowStrategy {
             ApprovalStage stage,
             StageStatus action) {
 
-        // Get all parallel stages for this loan request
-        List<ApprovalStage> allStages = approvalStageRepository
-                .findByRequestOrderByStageIndexAsc(request);
-
-        long totalStages = allStages.size();
-        long actedStages = allStages.stream()
-                .filter(s -> s.getStatus() != StageStatus.PENDING)
-                .count();
-        long approvedStages = allStages.stream()
-                .filter(s -> s.getStatus() == StageStatus.APPROVED)
-                .count();
-        long rejectedStages = allStages.stream()
-                .filter(s -> s.getStatus() == StageStatus.REJECTED)
-                .count();
-
-        log.info("Loan stages: total={} acted={} approved={} rejected={}",
-                totalStages, actedStages, approvedStages, rejectedStages);
-
-        // Not all approvers have acted yet — wait
-        if (actedStages < totalStages) {
-            log.info("Not all approvers have acted yet — waiting");
+        // Sequential chain: a rejection at any stage ends the request now, so
+        // a Department Head's rejection cannot be overridden by a later stage.
+        if (action == StageStatus.REJECTED) {
+            request.setStatus(RequestStatus.REJECTED);
+            requestRepository.save(request);
+            notificationService.notifyRejection(request, stage);
+            log.info("Vehicle request {} rejected at stage {}",
+                    request.getCaseId(), stage.getStageIndex());
             return;
         }
 
-        // All have acted — determine outcome
-        if (rejectedStages > 0) {
-            // At least one rejection — request is rejected
-            request.setStatus(RequestStatus.REJECTED);
-
-            // Find the first rejector for the rejection reason
-            ApprovalStage firstRejection = allStages.stream()
-                    .filter(s -> s.getStatus() == StageStatus.REJECTED)
-                    .findFirst()
-                    .orElse(stage);
-
-            request.setRejectedAt(LocalDateTime.now());
-            requestRepository.save(request);
-            notificationService.notifyRejection(request, firstRejection);
-
-            log.info("Loan request {} rejected — {} of {} approvers rejected",
-                    request.getCaseId(), rejectedStages, totalStages);
-
-        } else if (approvedStages == totalStages) {
-            // All approved — request is approved
+        if (stage.getStageIndex() == 1) {
+            // Department Head approved -> hand over to the Fleet Manager
+            activateStage(request, 2);
+            notificationService.notifyStageActivated(request, 2);
+        } else {
+            // Fleet Manager approved -> ready for driver assignment
             request.setStatus(RequestStatus.APPROVED);
             requestRepository.save(request);
             notificationService.notifyApproved(request);
-
-            log.info("Loan request {} approved unanimously",
-                    request.getCaseId());
+            log.info("Vehicle request {} approved", request.getCaseId());
         }
     }
 

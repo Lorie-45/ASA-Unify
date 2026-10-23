@@ -24,6 +24,7 @@ function formatRoleLabel(role: string): string {
 export default function MemoDetail() {
   const { id } = useParams<{ id: string }>();
   const role = useAuthStore((state) => state.role);
+  const userId = useAuthStore((state) => state.userId);
 
   const [memo, setMemo] = useState<MemoDto | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -48,7 +49,11 @@ export default function MemoDetail() {
     loadMemo();
   }, [loadMemo]);
 
-  const myStage = memo?.approvalStages.find((s) => s.assignedRole === role);
+  // Only the person the author named may act; sharing their role is not
+  // enough. (Legacy stages with no named person still match by role.)
+  const myStage = memo?.approvalStages.find((s) =>
+    s.assignedToId ? s.assignedToId === userId : s.assignedRole === role,
+  );
   const canAct = myStage && myStage.status === StageStatus.PENDING;
 
   async function handleConfirm(comment: string) {

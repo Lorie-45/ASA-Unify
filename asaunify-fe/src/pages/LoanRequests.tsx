@@ -92,6 +92,7 @@ export default function LoanApprovals() {
     (r) =>
       r.status === RequestStatus.APPROVED ||
       r.status === RequestStatus.REJECTED ||
+      r.status === RequestStatus.CANCELLED ||
       r.status === RequestStatus.COMPLETED,
   );
 

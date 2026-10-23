@@ -49,6 +49,27 @@ public class CaseReportService {
                 .collect(Collectors.toList());
     }
 
+    // Role-scoped listing: admins/auditors see everything, a department head
+    // only their own department. Used by the export, which must never be wider
+    // than what the same user can see in the on-screen reports.
+    @Transactional(readOnly = true)
+    public List<RequestResponseDto> getCasesForUser(
+            User user,
+            RequestStatus status,
+            RequestType type,
+            LocalDateTime from,
+            LocalDateTime to) {
+
+        if (user.getRole() == Role.ADMIN || user.getRole() == Role.AUDITOR) {
+            return getAllCases(status, type, from, to);
+        }
+        if (user.getRole() == Role.DEPARTMENT_HEAD) {
+            return getDepartmentCases(user, status, type, from, to);
+        }
+        throw new org.springframework.security.access.AccessDeniedException(
+                "Access denied");
+    }
+
     // ─── My Cases ─────────────────────────────────────────────
 
     // Any user — their own requests only
@@ -79,6 +100,11 @@ public class CaseReportService {
             LocalDateTime to) {
 
         if (deptHead.getDepartment() == null) {
+            // Admins/auditors have no department and oversee everything.
+            if (deptHead.getRole() == Role.ADMIN
+                    || deptHead.getRole() == Role.AUDITOR) {
+                return getAllCases(status, type, from, to);
+            }
             throw new IllegalArgumentException(
                     "User does not belong to a department"
             );
@@ -151,21 +177,29 @@ public class CaseReportService {
 
         if (currentUser.getRole() == Role.ADMIN ||
                 currentUser.getRole() == Role.AUDITOR) {
-            all = requestRepository.findByStatusOrderByCreatedAtDesc(
-                    RequestStatus.REJECTED
-            );
+            all = merge(
+                    requestRepository.findByStatusOrderByCreatedAtDesc(
+                            RequestStatus.REJECTED),
+                    requestRepository.findByStatusOrderByCreatedAtDesc(
+                            RequestStatus.CANCELLED));
         } else if (currentUser.getRole() == Role.DEPARTMENT_HEAD) {
-            all = requestRepository
-                    .findByDepartmentAndStatusOrderByCreatedAtDesc(
-                            currentUser.getDepartment(),
-                            RequestStatus.REJECTED
-                    );
+            all = merge(
+                    requestRepository
+                            .findByDepartmentAndStatusOrderByCreatedAtDesc(
+                                    currentUser.getDepartment(),
+                                    RequestStatus.REJECTED),
+                    requestRepository
+                            .findByDepartmentAndStatusOrderByCreatedAtDesc(
+                                    currentUser.getDepartment(),
+                                    RequestStatus.CANCELLED));
         } else {
-            all = requestRepository
-                    .findByInitiatorAndStatusOrderByCreatedAtDesc(
-                            currentUser,
-                            RequestStatus.REJECTED
-                    );
+            all = merge(
+                    requestRepository
+                            .findByInitiatorAndStatusOrderByCreatedAtDesc(
+                                    currentUser, RequestStatus.REJECTED),
+                    requestRepository
+                            .findByInitiatorAndStatusOrderByCreatedAtDesc(
+                                    currentUser, RequestStatus.CANCELLED));
         }
 
         return all.stream()
@@ -177,6 +211,15 @@ public class CaseReportService {
                 .collect(Collectors.toList());
     }
 
+    // Rejected and cancelled both end a workflow without completing it, so the
+    // "rejected / cancelled" report lists them together, newest first.
+    private List<Request> merge(List<Request> a, List<Request> b) {
+        List<Request> out = new java.util.ArrayList<>(a);
+        out.addAll(b);
+        out.sort(java.util.Comparator.comparing(Request::getCreatedAt).reversed());
+        return out;
+    }
+
     // ─── Overdue Cases ────────────────────────────────────────
 
     @Transactional(readOnly = true)
@@ -184,7 +227,8 @@ public class CaseReportService {
         return requestRepository
                 .findOverdueRequests(
                         LocalDateTime.now(),
-                        List.of(RequestStatus.COMPLETED, RequestStatus.REJECTED)
+                        List.of(RequestStatus.COMPLETED, RequestStatus.REJECTED,
+                                RequestStatus.CANCELLED)
                 )
                 .stream()
                 .filter(r -> {

@@ -26,6 +26,7 @@ export default function RequestDetail() {
   //   const navigate = useNavigate();
   const { canCancelRequests } = usePermissions();
   const role = useAuthStore((state) => state.role);
+  const departmentName = useAuthStore((state) => state.departmentName);
 
   const [request, setRequest] = useState<RequestResponseDto | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -118,8 +119,25 @@ export default function RequestDetail() {
   const activeStage = request?.approvalStages.find(
     (s) => s.status === StageStatus.PENDING,
   );
+  // A department head's stage belongs to the head of the department the
+  // request came from; an admin may resolve any open stage. Other roles act
+  // by role. (The server enforces all of this; this only decides the buttons.)
   const isCurrentApprover =
-    activeStage && role && activeStage.assignedRole === role;
+    request?.status === RequestStatus.PENDING &&
+    !!activeStage &&
+    !!role &&
+    (role === Role.ADMIN ||
+      (activeStage.assignedRole === role &&
+        (role !== Role.DEPARTMENT_HEAD ||
+          departmentName === request.departmentName)));
+
+  // Cancel: admins, and the head of the request's own department. Approved
+  // requests can still be cancelled; finished ones cannot.
+  const canCancelThis =
+    canCancelRequests &&
+    (request?.status === RequestStatus.PENDING ||
+      request?.status === RequestStatus.APPROVED) &&
+    (role === Role.ADMIN || departmentName === request?.departmentName);
   const isLogisticsStage = role === Role.LOGISTICS;
 
   async function handleConfirmAction(comment: string, inStock?: boolean) {
@@ -328,10 +346,7 @@ export default function RequestDetail() {
             </Button>
           )}
 
-          {canCancelRequests &&
-            request.status !== "COMPLETED" &&
-            request.status !== "REJECTED" &&
-            !isEditing && (
+          {canCancelThis && !isEditing && (
               <Button variant="danger" onClick={handleCancel}>
                 Cancel Request
               </Button>
@@ -532,6 +547,16 @@ export default function RequestDetail() {
         <section className="mb-8 bg-red-50 border border-red-200 rounded-xl p-4">
           <p className="text-sm font-semibold text-status-rejected mb-1">
             Rejected by {request.rejectedByName}
+          </p>
+          <p className="text-sm text-gray-700">{request.rejectionReason}</p>
+        </section>
+      )}
+
+      {/* Cancellation banner */}
+      {request.status === RequestStatus.CANCELLED && request.rejectionReason && (
+        <section className="mb-8 bg-gray-50 border border-gray-200 rounded-xl p-4">
+          <p className="text-sm font-semibold text-gray-600 mb-1">
+            Cancelled by {request.rejectedByName}
           </p>
           <p className="text-sm text-gray-700">{request.rejectionReason}</p>
         </section>
