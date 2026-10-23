@@ -32,6 +32,18 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         registry.setUserDestinationPrefix("/user");
     }
 
+    private final WebSocketAuthInterceptor authInterceptor;
+
+    public WebSocketConfig(WebSocketAuthInterceptor authInterceptor) {
+        this.authInterceptor = authInterceptor;
+    }
+
+    @Override
+    public void configureClientInboundChannel(
+            org.springframework.messaging.simp.config.ChannelRegistration registration) {
+        registration.interceptors(authInterceptor);
+    }
+
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
 

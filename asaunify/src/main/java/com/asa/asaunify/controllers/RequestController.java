@@ -124,8 +124,7 @@ public class RequestController {
 
     // POST /api/requests/{id}/cancel
     @PostMapping("/{id}/cancel")
-    @PreAuthorize("hasAnyRole('ADMIN', 'DEPARTMENT_HEAD', " +
-            "'RM', 'MSME_OFFICER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DEPARTMENT_HEAD')")
     public ResponseEntity<RequestResponseDto> cancelRequest(
             @PathVariable UUID id,
             @Valid @RequestBody CancelRequestBody body,
@@ -285,6 +284,7 @@ public class RequestController {
     @lombok.Getter
     @lombok.Setter
     public static class CancelRequestBody {
+        @jakarta.validation.constraints.NotBlank(message = "A reason is required to cancel a request")
         private String reason;
     }
 }

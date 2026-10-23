@@ -2,6 +2,7 @@ package com.asa.asaunify.services;
 
 
 import com.asa.asaunify.entity.ApprovalStage;
+import com.asa.asaunify.entity.Request;
 import com.asa.asaunify.entity.User;
 import com.asa.asaunify.enums.RequestStatus;
 import com.asa.asaunify.enums.RequestType;
@@ -36,6 +37,15 @@ public class DashboardReportService {
             User currentUser,
             LocalDateTime from,
             LocalDateTime to) {
+
+        // A department head sees only their own department's numbers.
+        if (currentUser.getRole() == Role.DEPARTMENT_HEAD) {
+            if (currentUser.getDepartment() == null) {
+                throw new IllegalArgumentException(
+                        "User does not belong to a department");
+            }
+            return getDepartmentSummary(currentUser, from, to);
+        }
 
         // Total counts per status
         long totalPending = requestRepository
@@ -108,6 +118,79 @@ public class DashboardReportService {
                 .pendingByType(byType)
                 .averageCompletionMinutesByRole(avgTimeByRole)
                 .build();
+    }
+
+    // Department-scoped version of the summary. Departments are small, so the
+    // figures are derived from the department's own requests and stages.
+    private DashboardSummaryDTO getDepartmentSummary(
+            User head, LocalDateTime from, LocalDateTime to) {
+
+        List<Request> requests = requestRepository
+                .findByDepartmentOrderByCreatedAtDesc(head.getDepartment());
+
+        long totalPending = countStatus(requests, RequestStatus.PENDING);
+        long totalApproved = countStatus(requests, RequestStatus.APPROVED);
+        long totalCompleted = countStatus(requests, RequestStatus.COMPLETED);
+        long totalRejected = countStatus(requests, RequestStatus.REJECTED);
+
+        LocalDateTime start = from != null ? from : LocalDateTime.now().minusMonths(1);
+        LocalDateTime end = to != null ? to : LocalDateTime.now();
+
+        List<Request> completedInPeriod = requests.stream()
+                .filter(r -> r.getStatus() == RequestStatus.COMPLETED)
+                .filter(r -> !r.getCreatedAt().isBefore(start)
+                        && !r.getCreatedAt().isAfter(end))
+                .toList();
+        long onTime = completedInPeriod.stream()
+                .filter(r -> r.getDueDate() != null
+                        && !r.getUpdatedAt().isAfter(r.getDueDate()))
+                .count();
+        double onTimeRate = completedInPeriod.isEmpty()
+                ? 0.0
+                : (double) onTime / completedInPeriod.size() * 100;
+
+        Map<String, Long> byType = new LinkedHashMap<>();
+        for (RequestType type : new RequestType[]{
+                RequestType.EQUIPMENT, RequestType.VEHICLE, RequestType.LOAN}) {
+            byType.put(type.name(), requests.stream()
+                    .filter(r -> r.getType() == type
+                            && r.getStatus() == RequestStatus.PENDING)
+                    .count());
+        }
+
+        Map<String, Double> avgTimeByRole = new LinkedHashMap<>();
+        Map<Role, List<ApprovalStage>> stagesByRole = requests.stream()
+                .flatMap(r -> r.getApprovalStages().stream())
+                .filter(s -> s.getActedAt() != null
+                        && s.getStatus() != StageStatus.PENDING
+                        && s.getDurationMinutes() != null)
+                .collect(java.util.stream.Collectors
+                        .groupingBy(ApprovalStage::getAssignedRole));
+        for (Role role : Role.values()) {
+            if (role == Role.DRIVER || role == Role.AUDITOR) continue;
+            double avg = stagesByRole.getOrDefault(role, List.of()).stream()
+                    .mapToLong(ApprovalStage::getDurationMinutes)
+                    .average().orElse(0.0);
+            if (avg > 0) {
+                avgTimeByRole.put(role.name(), Math.round(avg * 10.0) / 10.0);
+            }
+        }
+
+        return DashboardSummaryDTO.builder()
+                .totalRequests(totalPending + totalApproved
+                        + totalCompleted + totalRejected)
+                .totalPending(totalPending)
+                .totalApproved(totalApproved)
+                .totalCompleted(totalCompleted)
+                .totalRejected(totalRejected)
+                .onTimeRatePercent(Math.round(onTimeRate * 10.0) / 10.0)
+                .pendingByType(byType)
+                .averageCompletionMinutesByRole(avgTimeByRole)
+                .build();
+    }
+
+    private long countStatus(List<Request> requests, RequestStatus status) {
+        return requests.stream().filter(r -> r.getStatus() == status).count();
     }
 
     // ─── DTO ──────────────────────────────────────────────────

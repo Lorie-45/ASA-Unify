@@ -39,7 +39,16 @@ public class PasswordResetThrottleService {
     @Value("${app.password-reset.cooldown-seconds:60}")
     private long cooldownSeconds;
 
+    // Code-guessing attempts allowed per source inside the window. Each code
+    // already dies after a few wrong tries; this stops one host cycling through
+    // many accounts or many freshly requested codes.
+    @Value("${app.password-reset.max-attempts-per-window:20}")
+    private int maxAttemptsPerWindow;
+
     private final ConcurrentHashMap<String, Deque<Instant>> requests =
+            new ConcurrentHashMap<>();
+
+    private final ConcurrentHashMap<String, Deque<Instant>> attempts =
             new ConcurrentHashMap<>();
 
     /**
@@ -76,6 +85,31 @@ public class PasswordResetThrottleService {
         }
     }
 
+    /**
+     * Counts a code-guessing attempt (verify / reset) against the key and
+     * reports whether it is still within the allowance. Unlike tryAcquire there
+     * is no cooldown: a legitimate user retypes a code within seconds.
+     */
+    public boolean tryAttempt(String key) {
+        Instant now = Instant.now();
+        Instant windowStart = now.minus(Duration.ofMinutes(windowMinutes));
+
+        Deque<Instant> timestamps =
+                attempts.computeIfAbsent(key, k -> new ArrayDeque<>());
+
+        synchronized (timestamps) {
+            while (!timestamps.isEmpty()
+                    && timestamps.peekFirst().isBefore(windowStart)) {
+                timestamps.pollFirst();
+            }
+            if (timestamps.size() >= maxAttemptsPerWindow) {
+                return false;
+            }
+            timestamps.addLast(now);
+            return true;
+        }
+    }
+
     /** Clears a key's history — used once a reset completes successfully. */
     public void reset(String key) {
         requests.remove(key);
@@ -87,15 +121,18 @@ public class PasswordResetThrottleService {
      */
     public void purgeStale() {
         Instant windowStart = Instant.now().minus(Duration.ofMinutes(windowMinutes));
-        requests.entrySet().removeIf(entry -> {
-            Deque<Instant> timestamps = entry.getValue();
-            synchronized (timestamps) {
-                while (!timestamps.isEmpty()
-                        && timestamps.peekFirst().isBefore(windowStart)) {
-                    timestamps.pollFirst();
+        for (ConcurrentHashMap<String, Deque<Instant>> map
+                : java.util.List.of(requests, attempts)) {
+            map.entrySet().removeIf(entry -> {
+                Deque<Instant> timestamps = entry.getValue();
+                synchronized (timestamps) {
+                    while (!timestamps.isEmpty()
+                            && timestamps.peekFirst().isBefore(windowStart)) {
+                        timestamps.pollFirst();
+                    }
+                    return timestamps.isEmpty();
                 }
-                return timestamps.isEmpty();
-            }
-        });
+            });
+        }
     }
 }

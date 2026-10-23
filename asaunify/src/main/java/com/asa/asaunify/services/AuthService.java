@@ -38,9 +38,16 @@ public class AuthService {
     private final AuditService auditService;
     private final LoginAttemptService loginAttemptService;
     private final TokenRevocationService tokenRevocationService;
+    private final org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
+
+    // Hash checked for unknown emails so a miss costs the same BCrypt work as a
+    // hit; otherwise response time reveals which addresses have accounts.
+    private volatile String dummyHash;
 
 
-    @Transactional
+    // dontRollbackOn: failed logins throw, but the FAILED history row must
+    // still be committed.
+    @Transactional(dontRollbackOn = AuthenticationException.class)
     public AuthResponse login(AuthRequest request, HttpServletRequest httpRequest){
 
         // Canonical form for both the lookup and the throttle key — logins
@@ -60,6 +67,7 @@ public class AuthService {
         // Count unknown-email attempts too, so enumeration/guessing is throttled.
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> {
+                    burnPasswordCheck(request.getPassword());
                     loginAttemptService.loginFailed(attemptKey);
                     return new BadCredentialsException("Invalid email or password");
                 });
@@ -118,7 +126,8 @@ public class AuthService {
     }
 
     @Transactional
-    public void logout(String email, String token, HttpServletRequest httpRequest) {
+    public void logout(String email, String token, String refreshToken,
+                       HttpServletRequest httpRequest) {
         email = EmailNormalizer.normalize(email);
         // Revoke the presented access token so it cannot be replayed after
         // logout for the remainder of its lifetime.
@@ -129,6 +138,17 @@ public class AuthService {
                         jwtUtil.extractExpiration(token));
             } catch (Exception e) {
                 log.warn("Could not revoke token on logout: {}", e.getMessage());
+            }
+        }
+
+        // The refresh token would otherwise keep minting access tokens.
+        if (refreshToken != null && !refreshToken.isBlank()) {
+            try {
+                tokenRevocationService.revoke(
+                        jwtUtil.extractJti(refreshToken),
+                        jwtUtil.extractExpiration(refreshToken));
+            } catch (Exception e) {
+                log.warn("Could not revoke refresh token on logout: {}", e.getMessage());
             }
         }
 
@@ -179,6 +199,14 @@ public class AuthService {
                 .orElseThrow(() ->
                         new BadCredentialsException("Invalid refresh token"));
 
+        if (tokenRevocationService.isRevoked(jwtUtil.extractJti(refreshToken))) {
+            throw new BadCredentialsException("Invalid refresh token");
+        }
+
+        if (!user.isActive()) {
+            throw new BadCredentialsException("Invalid refresh token");
+        }
+
         if (jwtUtil.isTokenExpired(refreshToken)) {
             throw new BadCredentialsException("Refresh token has expired");
         }
@@ -213,6 +241,13 @@ public class AuthService {
                 .build();
     }
 
+    private void burnPasswordCheck(String password) {
+        if (dummyHash == null) {
+            dummyHash = passwordEncoder.encode("timing-equaliser");
+        }
+        passwordEncoder.matches(password == null ? "" : password, dummyHash);
+    }
+
     private void saveLoginHistory(
             User user,
             HttpServletRequest request,
@@ -236,10 +271,7 @@ public class AuthService {
     }
 
     private String getClientIp(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isEmpty()) ip = request.getRemoteAddr();
-        if (ip != null && ip.contains(",")) ip = ip.split(",")[0].trim();
-        return ip != null ? ip : "unknown";
+        return com.asa.asaunify.util.ClientIp.of(request);
     }
 
     private String parseBrowser(String userAgent) {

@@ -150,11 +150,7 @@ export default function NewRequest() {
     if (role !== Role.AUDITOR) {
       types.push({ value: RequestType.VEHICLE, label: "Vehicle" });
     }
-    if (
-      role === Role.LOAN_OFFICER ||
-      role === Role.MSME_OFFICER ||
-      role === Role.RM
-    ) {
+    if (role === Role.LOAN_OFFICER) {
       types.push({ value: RequestType.LOAN, label: "Loan" });
     }
 

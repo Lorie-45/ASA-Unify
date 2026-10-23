@@ -5,5 +5,7 @@ public enum RequestStatus {
     PENDING,
     APPROVED,
     REJECTED,
-    COMPLETED
+    COMPLETED,
+    // Workflow stopped by an admin / department head; never resumes.
+    CANCELLED
 }

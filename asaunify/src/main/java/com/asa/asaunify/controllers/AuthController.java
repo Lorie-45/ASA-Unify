@@ -33,6 +33,7 @@ public class AuthController {
 
     private final AuthService authService;
     private final PasswordResetService passwordResetService;
+    private final com.asa.asaunify.config.PasswordResetThrottleService resetThrottle;
 
     // Name of the httpOnly cookie carrying the refresh token.
     private static final String REFRESH_COOKIE = "refreshToken";
@@ -70,11 +71,12 @@ public class AuthController {
     public ResponseEntity<Void> logout(
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @CookieValue(value = REFRESH_COOKIE, required = false) String refreshToken,
             HttpServletRequest httpRequest) {
 
         String token = (authHeader != null && authHeader.startsWith("Bearer "))
                 ? authHeader.substring(7) : null;
-        authService.logout(userDetails.getUsername(), token, httpRequest);
+        authService.logout(userDetails.getUsername(), token, refreshToken, httpRequest);
 
         // Clear the refresh cookie.
         ResponseCookie cleared = buildRefreshCookie("", Duration.ZERO);
@@ -127,8 +129,10 @@ public class AuthController {
     // new-password step. The code is still required at reset time.
     @PostMapping("/verify-reset-code")
     public ResponseEntity<Map<String, String>> verifyResetCode(
-            @Valid @RequestBody VerifyResetCodeRequest request) {
+            @Valid @RequestBody VerifyResetCodeRequest request,
+            HttpServletRequest httpRequest) {
 
+        limitCodeAttempts(httpRequest);
         passwordResetService.verifyCode(request);
 
         return ResponseEntity.ok(Map.of(
@@ -141,6 +145,7 @@ public class AuthController {
             @Valid @RequestBody ResetPasswordRequest request,
             HttpServletRequest httpRequest) {
 
+        limitCodeAttempts(httpRequest);
         passwordResetService.resetPassword(request, httpRequest);
 
         // The reset invalidates existing sessions, so clear the refresh cookie
@@ -152,6 +157,16 @@ public class AuthController {
                 .body(Map.of("message",
                         "Password updated. You can now log in with your new "
                                 + "password."));
+    }
+
+    // Per-source cap on code guesses, shared by verify and reset. Says nothing
+    // about whether any account exists, so a 429 here leaks nothing.
+    private void limitCodeAttempts(HttpServletRequest httpRequest) {
+        if (!resetThrottle.tryAttempt(
+                "ip:" + com.asa.asaunify.util.ClientIp.of(httpRequest))) {
+            throw new org.springframework.security.authentication.LockedException(
+                    "Too many attempts. Please try again later.");
+        }
     }
 
     private ResponseCookie buildRefreshCookie(String value, Duration maxAge) {

@@ -157,7 +157,10 @@ public class PasswordResetService {
      * to the new-password step. A failed check still burns an attempt; the
      * code is only retired by resetPassword.
      */
-    @Transactional
+    // A rejected code must still persist its attempt counter / retirement.
+    // Without noRollbackFor, the IllegalArgumentException thrown after the
+    // increment rolls the whole transaction back and the limit never applies.
+    @Transactional(noRollbackFor = IllegalArgumentException.class)
     public void verifyCode(VerifyResetCodeRequest request) {
         resolveValidToken(
                 EmailNormalizer.normalize(request.getEmail()),
@@ -166,7 +169,8 @@ public class PasswordResetService {
 
     // ─── Complete the reset ───────────────────────────────────
 
-    @Transactional
+    // See verifyCode: failed attempts must survive the exception.
+    @Transactional(noRollbackFor = IllegalArgumentException.class)
     public void resetPassword(
             ResetPasswordRequest request,
             HttpServletRequest httpRequest) {
@@ -259,11 +263,7 @@ public class PasswordResetService {
     }
 
     private String getClientIp(HttpServletRequest request) {
-        if (request == null) return "unknown";
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isEmpty()) ip = request.getRemoteAddr();
-        if (ip != null && ip.contains(",")) ip = ip.split(",")[0].trim();
-        return ip != null ? ip : "unknown";
+        return com.asa.asaunify.util.ClientIp.of(request);
     }
 
     // ─── Housekeeping ─────────────────────────────────────────

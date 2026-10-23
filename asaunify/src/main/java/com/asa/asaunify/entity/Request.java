@@ -78,7 +78,7 @@ public class Request {
     private Request parentRequest;
 
     // Rejection / cancellation — covers both workflow rejections
-    // and admin/authorized cancellations
+    // and admin/department-head cancellations (status tells them apart)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "rejected_by")
     private User rejectedBy;
@@ -121,7 +121,8 @@ public class Request {
         return this.dueDate != null
                 && LocalDateTime.now().isAfter(this.dueDate)
                 && this.status != RequestStatus.COMPLETED
-                && this.status != RequestStatus.REJECTED;
+                && this.status != RequestStatus.REJECTED
+                && this.status != RequestStatus.CANCELLED;
     }
 
     // Convenience getter for loan-specific extra fields

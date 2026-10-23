@@ -98,7 +98,7 @@ public class MemoService {
 //        Memo saved = memoRepository.save(memo);
 //
 //        // Look up each approver by ID and create a stage per role
-//        List<MemoApprovalStage> stages = dto.getApproverIds().stream()
+//        List<MemoApprovalStage> stages = approverIds.stream()
 //                .map(approverId -> {
 //                    User approver = userRepository.findById(approverId)
 //                            .orElseThrow(() -> new IllegalArgumentException(
@@ -127,6 +127,18 @@ public class MemoService {
             CreateMemoRequest dto,
             User author,
             HttpServletRequest httpRequest) {  // ← add this parameter
+
+        // One stage per distinct, active approver.
+        List<UUID> approverIds = dto.getApproverIds().stream()
+                .distinct().collect(Collectors.toList());
+        for (UUID approverId : approverIds) {
+            User approver = userRepository.findById(approverId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Approver not found"));
+            if (!approver.isActive()) {
+                throw new IllegalArgumentException(
+                        "Approver " + approver.getFullName() + " is not active");
+            }
+        }
 
         Memo memo = Memo.builder()
                 .caseId(generateCaseId())
@@ -202,11 +214,13 @@ public class MemoService {
 //                        "You are not an approver for this memo"
 //                ));
 
-        // NEW — checks specific user first, falls back to role
-        MemoApprovalStage stage = memoApprovalStageRepository
-                .findByMemoAndAssignedToAndStatus(memo, currentUser, StageStatus.PENDING)
-                .or(() -> memoApprovalStageRepository
-                        .findByMemoAndAssignedRoleAndStatus(memo, currentUser.getRole(), StageStatus.PENDING))
+        // Only the person the author named may act. Sharing a role with them
+        // grants nothing. (Legacy stages created before approvers were named
+        // have no assignedTo and still resolve by role.)
+        MemoApprovalStage stage = memo.getApprovalStages().stream()
+                .filter(st -> st.getStatus() == StageStatus.PENDING)
+                .filter(st -> isAssignedTo(st, currentUser))
+                .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException(
                         "You are not an approver for this memo"
                 ));
@@ -303,7 +317,7 @@ public class MemoService {
     @Transactional(readOnly = true)
     public List<MemoDto> getPendingMemosForRole(User user) {
         return memoRepository
-                .findPendingMemosByRoleOrUser(user, user.getRole())
+                .findPendingMemosForUser(user, user.getRole())
                 .stream()
                 .map(this::toDTO)
                 .collect(Collectors.toList());
@@ -332,7 +346,14 @@ public class MemoService {
     // A user may view a memo only if they are:
     //   • ADMIN or AUDITOR, or
     //   • the author, or
-    //   • an assigned approver (by specific user or by role).
+    //   • an approver the author named.
+    private boolean isAssignedTo(MemoApprovalStage stage, User user) {
+        if (stage.getAssignedTo() != null) {
+            return stage.getAssignedTo().getId().equals(user.getId());
+        }
+        return stage.getAssignedRole() == user.getRole();   // legacy rows
+    }
+
     private boolean canView(Memo memo, User user) {
         if (user.getRole() == Role.ADMIN || user.getRole() == Role.AUDITOR) {
             return true;
@@ -342,10 +363,8 @@ public class MemoService {
             return true;
         }
         return memo.getApprovalStages() != null
-                && memo.getApprovalStages().stream().anyMatch(s ->
-                        (s.getAssignedTo() != null
-                                && s.getAssignedTo().getId().equals(user.getId()))
-                        || s.getAssignedRole() == user.getRole());
+                && memo.getApprovalStages().stream()
+                        .anyMatch(s -> isAssignedTo(s, user));
     }
 
     // ─── Helpers ──────────────────────────────────────────────
@@ -357,6 +376,7 @@ public class MemoService {
     }
 
     private String generateCaseId() {
+        memoRepository.lockCaseIdGeneration();
         return memoRepository.findLatestCaseId()
                 .map(last -> {
                     int number = Integer.parseInt(

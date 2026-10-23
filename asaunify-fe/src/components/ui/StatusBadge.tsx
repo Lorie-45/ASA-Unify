@@ -8,6 +8,7 @@ const STATUS_STYLES: Record<string, string> = {
   REJECTED: 'text-status-rejected',
   PENDING: 'text-status-pending',
   DRAFT: 'text-gray-400',
+  CANCELLED: 'text-gray-500',
 };
 
 function formatLabel(status: string): string {

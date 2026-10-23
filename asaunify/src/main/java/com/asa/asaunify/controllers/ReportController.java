@@ -333,9 +333,9 @@ public class ReportController {
         User currentUser = userService
                 .findUserByEmail(userDetails.getUsername());
 
-        // Fetch data using same scoped query as case reports
+        // Same role scoping as the on-screen case reports.
         List<RequestResponseDto> data = caseReportService
-                .getAllCases(status, type, from, to);
+                .getCasesForUser(currentUser, status, type, from, to);
 
         byte[] bytes;
         MediaType mediaType;

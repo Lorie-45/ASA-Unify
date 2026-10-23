@@ -14,6 +14,7 @@ import {
   Banknote,
 } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
+import { authApi } from "../../api/auth.api";
 import { Role } from "../../types/enums";
 
 interface NavItem {
@@ -137,7 +138,15 @@ export default function Sidebar() {
     (item) => !item.roles || (role && item.roles.includes(role)),
   );
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Tell the server first: it revokes the tokens and clears the httpOnly
+    // refresh cookie, which JS cannot do. Best-effort - log out locally even
+    // if the call fails (e.g. the access token already expired).
+    try {
+      await authApi.logout();
+    } catch {
+      /* ignore */
+    }
     logout();
     window.location.href = "/login";
   };
