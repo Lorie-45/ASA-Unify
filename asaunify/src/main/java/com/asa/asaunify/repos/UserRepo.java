@@ -25,4 +25,9 @@ public interface UserRepo extends JpaRepository<User, UUID> {
     @Query("SELECT u FROM User u WHERE u.department.id = :departmentId AND u.isActive = true")
     List<User> findActiveUsersByDepartmentId(UUID departmentId);
 
+    // Rows stored before email normalization was introduced. Used once at
+    // startup to bring historic data into canonical form.
+    @Query("SELECT u FROM User u WHERE u.email <> LOWER(TRIM(u.email))")
+    List<User> findWithNonNormalizedEmail();
+
 }

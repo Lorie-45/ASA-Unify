@@ -119,5 +119,5 @@ public interface RequestRepo extends JpaRepository<Request, UUID> {
     // Gets the highest existing reference number to increment
     @Query("SELECT r.caseId FROM Request r " +
             "ORDER BY r.createdAt DESC LIMIT 1")
-    Optional<String> findLatestReferenceNumber();
+    Optional<String> findLatestCaseId();
 }

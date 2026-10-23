@@ -5,6 +5,7 @@ import com.asa.asaunify.enums.Role;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
@@ -50,6 +51,14 @@ public class User {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    // When the password was last changed. Access tokens issued before this
+    // instant are rejected by JwtFilter, which is how a password reset
+    // invalidates sessions an attacker may already hold. Stored as an Instant
+    // rather than LocalDateTime because it is compared against a JWT iat
+    // claim — an absolute point in time, with no zone or DST ambiguity.
+    @Column(name = "password_changed_at")
+    private Instant passwordChangedAt;
 
     @PrePersist
     protected void onCreate() {

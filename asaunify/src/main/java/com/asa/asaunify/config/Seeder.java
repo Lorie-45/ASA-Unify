@@ -3,6 +3,7 @@ package com.asa.asaunify.config;
 import com.asa.asaunify.entity.User;
 import com.asa.asaunify.enums.Role;
 import com.asa.asaunify.repos.UserRepo;
+import com.asa.asaunify.util.EmailNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -34,6 +35,9 @@ public class Seeder implements ApplicationRunner {
     }
 
     private void seedAdmin(){
+
+        // Stored in canonical form like every other address.
+        adminEmail = EmailNormalizer.normalize(adminEmail);
 
         if (userRepository.findByEmail(adminEmail).isPresent()) {
             log.info("Admin user already exists — skipping seed");

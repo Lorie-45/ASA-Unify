@@ -6,6 +6,10 @@ public enum ActionType {
         LOGOUT,
         LOGIN_FAILED,
 
+        // The code itself is never recorded on these entries.
+        PASSWORD_RESET_REQUESTED,
+        PASSWORD_RESET_COMPLETED,
+
         REQUEST_CREATED,
         REQUEST_SUBMITTED,
         REQUEST_APPROVED,
@@ -27,6 +31,7 @@ public enum ActionType {
         USER_UPDATED,
         USER_DEACTIVATED,
 
-        REQUEST_CANCELLED
+        REQUEST_CANCELLED,
+        REQUEST_DELETED
 
 }

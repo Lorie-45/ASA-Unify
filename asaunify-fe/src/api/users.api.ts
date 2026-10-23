@@ -52,7 +52,14 @@ export const usersApi = {
     return response.data;
   },
 
-  deactivateUser: async (id: string): Promise<void> => {
+  // Activate / deactivate via partial update (soft).
+  setActive: async (id: string, isActive: boolean): Promise<UserDto> => {
+    const response = await api.patch<UserDto>(`/users/${id}`, { isActive });
+    return response.data;
+  },
+
+  // Permanent hard delete.
+  deleteUser: async (id: string): Promise<void> => {
     await api.delete(`/users/${id}`);
   },
 };

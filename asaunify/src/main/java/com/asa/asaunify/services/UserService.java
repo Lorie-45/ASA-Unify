@@ -11,6 +11,7 @@ import com.asa.asaunify.enums.ActionType;
 import com.asa.asaunify.logging.AuditService;
 import com.asa.asaunify.repos.DepartmentRepo;
 import com.asa.asaunify.repos.UserRepo;
+import com.asa.asaunify.util.EmailNormalizer;
 import com.asa.asaunify.enums.Role;
 import com.asa.asaunify.exceptions.DuplicateResourceException;
 import com.asa.asaunify.exceptions.ResourceNotFoundException;
@@ -34,6 +35,9 @@ public class UserService {
     private final DepartmentRepo departmentRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
+    private final com.asa.asaunify.repos.LoginHistoryRepo loginHistoryRepository;
+    private final com.asa.asaunify.repos.NotificationRepo notificationRepository;
+    private final com.asa.asaunify.repos.AuditLogRepo auditLogRepository;
 
     @Transactional
     public UserDto createUser(
@@ -41,8 +45,12 @@ public class UserService {
             User createdBy,
             HttpServletRequest httpRequest) {
 
+        // Canonical form before the uniqueness check, so "John@x.com" and
+        // "john@x.com" can no longer become two separate accounts.
+        String email = EmailNormalizer.normalize(request.getEmail());
+
         // Check email uniqueness
-        if (userRepository.existsByEmail(request.getEmail())) {
+        if (userRepository.existsByEmail(email)) {
             throw new DuplicateResourceException("Email already in use");
         }
 
@@ -62,7 +70,7 @@ public class UserService {
 
         User user = User.builder()
                 .fullName(request.getFullName())
-                .email(request.getEmail())
+                .email(email)
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .role(request.getRole())
                 .department(department)
@@ -159,11 +167,12 @@ public class UserService {
             user.setFullName(request.getFullName());
         }
         if (request.getEmail() != null) {
-            if (userRepository.existsByEmail(request.getEmail()) &&
-                    !user.getEmail().equals(request.getEmail())) {
+            String newEmail = EmailNormalizer.normalize(request.getEmail());
+            if (userRepository.existsByEmail(newEmail) &&
+                    !user.getEmail().equals(newEmail)) {
                 throw new DuplicateResourceException("Email already in use");
             }
-            user.setEmail(request.getEmail());
+            user.setEmail(newEmail);
         }
         if (request.getRole() != null) {
             user.setRole(request.getRole());
@@ -198,24 +207,37 @@ public class UserService {
     }
 
 
+    // Hard delete. Removes the user and their transient records (login
+    // history, notifications) and detaches them from the audit trail. Business
+    // records (requests, memos, approvals, trips) have NOT NULL references to
+    // the user, so a user with any of those cannot be deleted — the resulting
+    // DataIntegrityViolationException is mapped to a 409 telling the admin to
+    // deactivate instead.
     @Transactional
-    public void deactivateUser(
+    public void deleteUser(
             UUID id,
-            User deactivatedBy,
+            User deletedBy,
             HttpServletRequest httpRequest) {
 
         User user = findUserById(id);
-        user.setActive(false);
-        userRepository.save(user);
 
+        // Audit the deletion first (before removing the user's own log links).
         auditService.log(
-                deactivatedBy,
+                deletedBy,
                 ActionType.USER_DEACTIVATED,
                 "USER",
                 user.getId().toString(),
                 "USERS",
                 httpRequest
         );
+
+        // Clear transient references, then delete.
+        loginHistoryRepository.deleteByUser(user);
+        notificationRepository.deleteByUser(user);
+        auditLogRepository.detachUser(user);
+
+        userRepository.delete(user);
+        userRepository.flush(); // surface any remaining FK violation now
     }
 
 

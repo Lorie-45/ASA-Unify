@@ -28,13 +28,15 @@ export default function SearchFilterBar({
           className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
         />
       </div>
-      <button
-        onClick={onFilterClick}
-        className="flex items-center gap-2 px-5 py-3 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary-dark transition-colors"
-      >
-        <SlidersHorizontal size={16} />
-        Filters
-      </button>
+      {onFilterClick && (
+        <button
+          onClick={onFilterClick}
+          className="flex items-center gap-2 px-5 py-3 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary-dark transition-colors"
+        >
+          <SlidersHorizontal size={16} />
+          Filters
+        </button>
+      )}
     </div>
   );
 }

@@ -19,6 +19,7 @@ public interface NotificationRepo extends JpaRepository<Notification, UUID> {
 
     // All notifications for a user — newest first
     List<Notification> findByUserOrderByCreatedAtDesc(User user);
+    void deleteByUser(User user);
 
     // All unread notifications for a user
     // Powers the notification bell badge count

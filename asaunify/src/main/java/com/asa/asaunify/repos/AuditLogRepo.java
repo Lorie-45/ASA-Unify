@@ -4,6 +4,7 @@ import com.asa.asaunify.entity.AuditLog;
 import com.asa.asaunify.entity.User;
 import com.asa.asaunify.enums.ActionType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -14,6 +15,12 @@ import java.util.UUID;
 
 @Repository
 public interface AuditLogRepo extends JpaRepository<AuditLog, UUID> {
+
+    // Detach a (to-be-deleted) user from their audit entries, preserving the
+    // trail (action/ip/timestamp) while removing the personal reference.
+    @Modifying
+    @Query("UPDATE AuditLog a SET a.user = null WHERE a.user = :user")
+    void detachUser(@Param("user") User user);
 
     // All logs for a specific user — newest first
     List<AuditLog> findByUserOrderByTimestampDesc(User user);

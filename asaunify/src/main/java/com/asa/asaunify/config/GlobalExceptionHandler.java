@@ -53,6 +53,16 @@ public class GlobalExceptionHandler {
         return body(HttpStatus.CONFLICT, ex.getMessage());
     }
 
+    // e.g. hard-deleting a user who still has requests/approvals on record.
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleDataIntegrity(
+            org.springframework.dao.DataIntegrityViolationException ex) {
+        log.warn("Data integrity violation: {}", ex.getMostSpecificCause().getMessage());
+        return body(HttpStatus.CONFLICT,
+                "This record is referenced by other data and cannot be deleted. "
+                        + "Deactivate it instead.");
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalArgument(
             IllegalArgumentException ex) {

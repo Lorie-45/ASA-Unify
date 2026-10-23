@@ -9,6 +9,7 @@ import com.asa.asaunify.enums.ActionType;
 import com.asa.asaunify.logging.AuditService;
 import com.asa.asaunify.repos.LoginHistoryRepo;
 import com.asa.asaunify.repos.UserRepo;
+import com.asa.asaunify.util.EmailNormalizer;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -42,8 +43,12 @@ public class AuthService {
     @Transactional
     public AuthResponse login(AuthRequest request, HttpServletRequest httpRequest){
 
+        // Canonical form for both the lookup and the throttle key — logins
+        // used to fail when the stored address differed only in casing.
+        String email = EmailNormalizer.normalize(request.getEmail());
+
         // Brute-force guard: block after repeated failures for this email+IP.
-        String attemptKey = (request.getEmail() == null ? "" : request.getEmail().toLowerCase())
+        String attemptKey = (email == null ? "" : email)
                 + "|" + getClientIp(httpRequest);
         if (loginAttemptService.isBlocked(attemptKey)) {
             throw new LockedException(
@@ -53,7 +58,7 @@ public class AuthService {
         }
 
         // Count unknown-email attempts too, so enumeration/guessing is throttled.
-        User user = userRepository.findByEmail(request.getEmail())
+        User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> {
                     loginAttemptService.loginFailed(attemptKey);
                     return new BadCredentialsException("Invalid email or password");
@@ -63,7 +68,7 @@ public class AuthService {
 
             authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
-                            request.getEmail(),
+                            email,
                             request.getPassword()
                     )
             );
@@ -114,6 +119,7 @@ public class AuthService {
 
     @Transactional
     public void logout(String email, String token, HttpServletRequest httpRequest) {
+        email = EmailNormalizer.normalize(email);
         // Revoke the presented access token so it cannot be replayed after
         // logout for the remainder of its lifetime.
         if (token != null) {
@@ -175,6 +181,18 @@ public class AuthService {
 
         if (jwtUtil.isTokenExpired(refreshToken)) {
             throw new BadCredentialsException("Refresh token has expired");
+        }
+
+        // /api/auth/refresh is in JwtFilter's shouldNotFilter list, so the
+        // password-change check there never runs for this call. Repeat it
+        // here, otherwise a refresh token issued before a password reset could
+        // still be exchanged for a brand-new access token.
+        if (user.getPasswordChangedAt() != null) {
+            java.time.Instant issuedAt = jwtUtil.extractIssuedAt(refreshToken);
+            if (issuedAt == null
+                    || issuedAt.isBefore(user.getPasswordChangedAt())) {
+                throw new BadCredentialsException("Invalid refresh token");
+            }
         }
 
         String newAccessToken = jwtUtil.generateAccessToken(user);

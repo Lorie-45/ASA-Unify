@@ -1,11 +1,12 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { authApi } from '../api/auth.api';
 import { useAuthStore } from '../store/authStore';
 import { useNotificationStore } from '../store/notificationStore';
 import axios from 'axios';
 import { toastApiError, toastError, toastSuccess } from '../utils/toast';
+import { normalizeEmail, validateEmail } from '../utils/validation';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -20,14 +21,24 @@ export default function Login() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!email || !password) {
+    // Format is checked here and again by the backend DTO; the address is
+    // normalized so casing or a stray space cannot cause a spurious failure.
+    const emailError = validateEmail(email);
+    if (emailError) {
+      toastError(emailError);
+      return;
+    }
+    if (!password) {
       toastError('Please enter both email and password');
       return;
     }
 
     setIsLoading(true);
     try {
-      const response = await authApi.login({ email, password });
+      const response = await authApi.login({
+        email: normalizeEmail(email),
+        password,
+      });
 
       setAuth({
         accessToken: response.accessToken,
@@ -111,9 +122,9 @@ export default function Login() {
                 </div>
 
                 <div>
-                <a href="#" className="text-sm text-primary font-medium hover:underline" >                
+                <Link to="/forgot-password" className="text-sm text-primary font-medium hover:underline">
                     Forgot Password?
-                </a>
+                </Link>
                 </div>
 
                 <button

@@ -102,6 +102,24 @@ public class RequestController {
         );
     }
 
+    // ─── Delete Draft ─────────────────────────────────────────
+
+    // DELETE /api/requests/{id}
+    // Draft-only, initiator-only. Ownership and status are enforced in the
+    // service, so no @PreAuthorize role gate is needed here.
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteDraft(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UserDetails userDetails,
+            HttpServletRequest httpRequest) {
+
+        User currentUser = userService
+                .findUserByEmail(userDetails.getUsername());
+
+        requestService.deleteDraft(id, currentUser, httpRequest);
+        return ResponseEntity.noContent().build();
+    }
+
     // ─── Cancel ───────────────────────────────────────────────
 
     // POST /api/requests/{id}/cancel
