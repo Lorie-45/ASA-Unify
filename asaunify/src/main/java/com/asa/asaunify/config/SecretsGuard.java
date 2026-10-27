@@ -48,9 +48,8 @@ public class SecretsGuard {
             problems.add("DB_PASSWORD is the development default");
         }
 
-        if (DEV_ADMIN_PASSWORD.equals(
-                env.getProperty("seed.admin.password", DEV_ADMIN_PASSWORD))) {
-            problems.add("SEED_ADMIN_PASSWORD is the development default");
+        if (DEV_ADMIN_PASSWORD.equals(env.getProperty("seed.admin.password"))) {
+            problems.add("seed.admin.password is the published development default");
         }
 
         if (problems.isEmpty()) {
